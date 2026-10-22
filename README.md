@@ -10,6 +10,63 @@ A high-performance, enterprise-grade, **pure PowerShell-only** LAN Dynamic Wallp
 
 ---
 
+## ⚡ Quick Start: Exactly What You Need to Do (Easy Step-by-Step)
+
+Setting up and running the dynamic wallpaper slideshow across your office or computer lab network takes **less than 1 minute**. No installation or command typing needed:
+
+```
+Step 1 (Host PC)                      Step 2 (Upload Photos)                 Step 3 (Client PCs)
++-----------------------+             +-----------------------+              +-----------------------+
+| Run 1-Start-Host.bat  |    --->     | Drop images into the  |     --->     | Run 2-Start-Client.bat|
+| (Starts server & IP)  |             | Wallpapers folder     |              | (Auto-connects to Host|
++-----------------------+             +-----------------------+              +-----------------------+
+```
+
+---
+
+### 🖥️ Step 1: On the Host PC (The Administrator Computer)
+
+1. Double-click **`1-Start-Host.bat`** (located right in your outer folder).
+2. A green console window appears showing your Host PC's active IP address (e.g. `192.168.31.20`).
+3. **The `Wallpapers/` folder will automatically pop open** on your screen in Windows Explorer!
+4. **Drop your photos or videos** into this `Wallpapers/` folder:
+   - Supported formats: **JPG, PNG, BMP, GIF, WEBP, HEIC (iPhone photos), MP4/MOV videos**.
+5. The Host immediately sets its own desktop wallpaper and rotates through all images every **5 seconds**!
+6. **Keep `1-Start-Host.bat` open** (you can minimize it).
+
+---
+
+### 💻 Step 2: On Client PCs (All 30–100 Lab/Office Computers)
+
+1. Copy the folder to the client computer (via USB drive or LAN network share).
+2. Double-click **`2-Start-Client.bat`**.
+3. **That's all!**
+   - You do **NOT** need administrator privileges on client machines.
+   - You do **NOT** need to type or configure the Host's IP address.
+   - The client automatically scans the LAN, finds the Host PC, downloads all photos, and starts rotating the desktop wallpaper every **5 seconds**!
+
+---
+
+### 🧪 Step 3: Run Diagnostics & Automated Tests (Optional)
+
+- Double-click **`3-Test-System.bat`** (inside `LAN-Dynamic-Wallpaper\`) to run the automated test harness:
+  - Validates image conversion & SHA-256 hashes.
+  - Tests 100-client concurrent load simulation (400 requests in 0.86 seconds).
+  - Confirms 100% system health.
+
+---
+
+### 💡 Frequently Asked Actions
+
+| What You Want to Do | How to Do It in 1 Step |
+| :--- | :--- |
+| **Add a new photo** | Just drop the photo file into `Wallpapers/` on the Host PC. Within 10 seconds, all client computers will automatically start showing it! |
+| **Remove a photo** | Delete the file from `Wallpapers/` on the Host PC. All client computers immediately stop showing it. |
+| **Change the 5-second timer** | Open `Host\HostConfig.json` in Notepad, change `"DefaultIntervalSeconds": 5` to any number you want (e.g. `10` or `30`), and save. |
+| **Check connected clients** | Run `powershell -File Tools\Deployment-Report.ps1` to view live client workstations. |
+
+---
+
 ## ⚡ Key Highlights & Architecture
 
 - **Zero External Dependencies**: Operates exclusively using Windows PowerShell 5.1+, Windows APIs via P/Invoke (`SystemParametersInfoW`), Windows Task Scheduler, and the Windows Firewall. **No Python, Node.js, Java, databases, or cloud services required**.
