@@ -46,7 +46,7 @@ For rapid zero-setup deployment, copy the `LAN-Dynamic-Wallpaper` folder and run
 ### Step 1.2: Actions Performed Automatically
 The installer performs the following operations without requiring manual intervention:
 1. **Compatibility Check**: Confirms OS version and PowerShell 5.1+ runtime.
-2. **Directory Scaffolding**: Verifies and initializes `Wallpapers\`, `Published\`, and `Logs\`.
+2. **Directory Scaffolding**: Verifies and initializes `Wallpapers\` and `Logs\`.
 3. **Cryptographic Credential Generation**:
    - Generates a 256-bit random client authentication token (`AuthSecret`).
    - Generates a 256-bit random administrator management key (`AdminSecret`).
@@ -64,28 +64,27 @@ The installer performs the following operations without requiring manual interve
 
 ## 🖼️ Part 2: Dynamic Wallpaper Management
 
-The administrator manages the active desktop slideshow simply by managing files in the `Wallpapers\` folder on the Host PC:
+The administrator manages the active desktop slideshow simply by managing files in the single `Wallpapers\` folder on the Host PC:
 
 ### Adding New Images
-1. Copy any valid image (`.jpg`, `.jpeg`, `.png`, `.bmp`) into `Wallpapers\`.
+1. Copy any valid image or video (`.jpg`, `.jpeg`, `.png`, `.bmp`, `.heic`, `.webp`, `.mp4`) into `Wallpapers\`.
 2. The background `Publisher.ps1` file-system monitor automatically:
    - Detects the new file.
    - Waits for copy completion to ensure the file is not locked.
-   - Inspects the binary magic bytes to reject corrupted or spoofed files.
+   - Inspects binary magic bytes and converts non-native formats (HEIC, WebP, video snapshots) to HD JPEG.
    - Computes the SHA-256 hash.
-   - Copies the file atomically to `Published\`.
-   - Generates an updated `manifest.json` with a new `collectionVersion`.
-3. Connected clients will detect the new collection on their next 10-second check and automatically download the new image.
+   - Generates an updated `Wallpapers\manifest.json` with a new `collectionVersion`.
+3. Connected clients detect the new collection on their next check and automatically download the new image.
 
 ### Replacing an Image (Same Filename)
 1. Overwrite an existing image in `Wallpapers\` with a new file having the exact same name.
 2. The publisher computes the new SHA-256 hash.
-3. Because the hash differs from the published record, the host increments the collection version and updates the published asset.
+3. Because the hash differs from the previous record, the host increments the collection version and updates the asset record.
 4. Clients download the updated image without corrupting their active slideshow.
 
 ### Deleting an Image
 1. Delete the image file from `Wallpapers\`.
-2. The publisher detects the deletion, prunes the file from `Published\`, and publishes an updated manifest.
+2. The publisher detects the deletion and publishes an updated `Wallpapers\manifest.json`.
 3. Clients synchronize, remove the deleted image from their local `Cache\`, and smoothly advance to the next available image.
 
 ---

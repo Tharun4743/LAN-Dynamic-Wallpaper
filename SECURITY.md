@@ -35,7 +35,7 @@ Malicious clients or network attackers might attempt to craft HTTP requests like
 1. **URL Decoding**: The request path is unescaped using `[System.Uri]::UnescapeDataString()`.
 2. **Regex Guard**: Any string matching directory separators (`/`, `\`), path traversal patterns (`..`), or Windows invalid filename characters (`:`, `*`, `?`, `"`, `<`, `>`, `|`) is instantly blocked with HTTP 400 Bad Request.
 3. **Canonical Path Resolution**: The target path is converted to a canonical full path using `[System.IO.Path]::GetFullPath()`.
-4. **Boundary Verification**: The canonical path is verified using `StartsWith()` against the absolute `Published\` directory path. If an attacker bypasses filters, the boundary check rejects the request with HTTP 403 Forbidden.
+4. **Boundary Verification**: The canonical path is verified using `StartsWith()` against the absolute `Wallpapers\` directory path. If an attacker bypasses filters, the boundary check rejects the request with HTTP 403 Forbidden.
 
 ### 2. Magic-Byte Image Validation (Anti-Malware & Anti-Spoofing)
 Attackers might rename malicious executables (`.exe`), scripts (`.ps1`, `.bat`), or exploit payloads with `.jpg` extensions.

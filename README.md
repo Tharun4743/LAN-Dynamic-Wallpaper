@@ -129,7 +129,7 @@ Simply copy the `LAN-Dynamic-Wallpaper` folder and run the appropriate numbered 
 
 ### 1️⃣ On the Host PC: Run `1-Start-Host.bat`
 - Automatically detects active LAN IPv4 address and adapter.
-- Validates and atomically publishes images from `Wallpapers/` to `Published/`.
+- Validates images in `Wallpapers/`, converts modern formats, and atomically updates `manifest.json`.
 - Starts the HTTP service (port `8765`) and UDP discovery responder (port `8766`).
 - **Immediately sets the Host PC's desktop wallpaper** and rotates through the collection dynamically!
 
@@ -171,7 +171,7 @@ The system includes a built-in automated stress simulation suite (`Tests\Test-10
 ## 🔒 Security Standards Summary
 
 - **Authentication**: Cryptographically random 256-bit token validation on every manifest and wallpaper asset request (`X-Auth-Token`).
-- **Path Traversal Protection**: Multi-layered defense rejecting `..`, encoded traversal paths (`%2e%2e`), drive qualifiers, and validating that canonical paths remain strictly inside `Published\`.
+- **Path Traversal Protection**: Multi-layered defense rejecting `..`, encoded traversal paths (`%2e%2e`), drive qualifiers, and validating that canonical paths remain strictly inside `Wallpapers\`.
 - **Zero Binary Execution**: Downloaded files are strictly treated as binary streams and applied only via Win32 `SystemParametersInfoW`.
 - **Network Boundaries**: Default binding to private LAN interfaces. Windows Firewall rules narrowly scoped to Private/Domain profiles.
 

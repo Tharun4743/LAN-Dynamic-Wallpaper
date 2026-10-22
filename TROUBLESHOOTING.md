@@ -109,8 +109,8 @@ The client is architected to operate flawlessly with a static IP configuration w
 
 ---
 
-### Scenario 5: Image Dropped in Wallpapers Folder is Not Published
-**Symptoms**: Administrator copies an image into `Wallpapers\`, but clients never receive it and `Published\` does not contain the file.
+### Scenario 5: Image Dropped in Wallpapers Folder is Not Showing
+**Symptoms**: Administrator copies an image into `Wallpapers\`, but clients never receive it and `manifest.json` does not update.
 
 **Diagnostic Check**:
 1. Open the Host log: `Logs\host-YYYY-MM-DD.log`.
