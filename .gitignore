@@ -1,0 +1,41 @@
+# ==============================================================================
+# LAN Dynamic Wallpaper - Git Ignore Rules
+# Strict Zero-Secret & Anti-Leak Isolation
+# ==============================================================================
+
+# Secrets and environment configurations
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+credentials.json
+id_rsa
+*.pfx
+
+# Application runtime state and generated stores
+Host/clients.json
+Client/Cache/
+Cache/
+Logs/
+*.log
+
+# Installer generated client distribution packages
+Installer/Client-Package/
+
+# Temporary and swap files
+*.tmp
+*.pubtmp
+*.clttmp
+*.swp
+
+# Automated test sandboxes and transient run artifacts
+Tests/Test-Sandbox-*
+Tests/Test-Sandbox-*/
+Test-Sandbox-*/
+
+# Visual Studio / VS Code local state
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini

@@ -1,0 +1,26 @@
+{
+  "Connection": {
+    "HostAddress": "",
+    "HostPort": 8765,
+    "DiscoveryPort": 8766,
+    "EnableDiscovery": true,
+    "DiscoveryTimeoutSeconds": 4,
+    "PollIntervalSeconds": 5,
+    "MaxBackoffSeconds": 30,
+    "RequestTimeoutSeconds": 15
+  },
+  "Security": {
+    "AuthSecret": "a8f9c3e2b1d4765e9081234567abcdef0123456789abcdef0123456789abcdef",
+    "ClientId": ""
+  },
+  "Slideshow": {
+    "_comment_timer": "LOCAL SLIDESHOW TIMER: To change interval in seconds, edit IntervalSeconds below (e.g., 5 for 5s, 10 for 10s, 60 for 1min)",
+    "IntervalSeconds": 5,
+    "WallpaperStyle": 10,
+    "TileWallpaper": 0
+  },
+  "Paths": {
+    "CacheDir": "../Cache",
+    "LogsDir": "../Logs"
+  }
+}

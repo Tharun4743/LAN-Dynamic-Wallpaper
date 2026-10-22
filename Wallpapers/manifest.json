@@ -1,0 +1,34 @@
+﻿{
+    "protocolVersion":  "1.0",
+    "collectionVersion":  "v20261022211647_ba1538fa",
+    "timestamp":  "2026-10-22T21:16:47.7782019Z",
+    "slideshowInterval":  5,
+    "totalImages":  3,
+    "totalBytes":  3318975,
+    "images":  [
+                   {
+                       "name":  "images.jpg",
+                       "hash":  "2370c4e546acb056823797db7e6b5d8d3406d7f23dc43f89a85a61d40c4f3c8f",
+                       "size":  9028,
+                       "extension":  ".jpg",
+                       "modified":  "2026-10-22T20:47:48.0636442Z",
+                       "downloadUrl":  "/api/v1/wallpaper/images.jpg"
+                   },
+                   {
+                       "name":  "IMG_3319.jpg",
+                       "hash":  "d1b1eb690fa093c51c1eff0f39835050a162d7e92d7befd9512eb0481813da04",
+                       "size":  2998042,
+                       "extension":  ".jpg",
+                       "modified":  "2026-10-22T21:16:47.7430895Z",
+                       "downloadUrl":  "/api/v1/wallpaper/IMG_3319.jpg"
+                   },
+                   {
+                       "name":  "IMG-20260218-WA0011.jpg",
+                       "hash":  "2050a6cecab2e3162e444fb5cab349995221b6e65c605b418d368cb85da4c524",
+                       "size":  311905,
+                       "extension":  ".jpg",
+                       "modified":  "2026-10-22T20:48:49.3471557Z",
+                       "downloadUrl":  "/api/v1/wallpaper/IMG-20260218-WA0011.jpg"
+                   }
+               ]
+}
