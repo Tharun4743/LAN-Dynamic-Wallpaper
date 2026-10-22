@@ -151,11 +151,6 @@ Simply copy the `LAN-Dynamic-Wallpaper` folder and run the appropriate numbered 
 
 ---
 
-### Master Interactive Control Center: `Run-All.bat`
-For full menu access, elevated service installations (Windows Scheduled Tasks & Windows Firewall rules), and network diagnostic tools, double-click **`Run-All.bat`**.
-
----
-
 ## 📊 Measured Benchmark Results (100 Concurrent Clients)
 
 The system includes a built-in automated stress simulation suite (`Tests\Test-100Clients.ps1`) executing real end-to-end multi-step client transactions (Registration, Manifest retrieval, Binary download, Heartbeat telemetry) concurrently:
