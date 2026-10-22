@@ -70,44 +70,36 @@ A high-performance, enterprise-grade, **pure PowerShell-only** LAN Dynamic Wallp
 ## 📂 Project Directory Structure
 
 ```
-LAN-Dynamic-Wallpaper/
-├── 1-Start-Host.bat             # 🖥️ 1-CLICK HOST LAUNCHER (Auto-detects IP, publishes & starts host slideshow)
+IT/
+├── 1-Start-Host.bat             # 🖥️ 1-CLICK HOST LAUNCHER (Auto-detects IP, opens Wallpapers, starts host slideshow)
 ├── 2-Start-Client.bat           # 💻 1-CLICK CLIENT LAUNCHER (Auto-discovers host over LAN, syncs & starts slideshow)
-├── 3-Test-System.bat            # ⚡ 1-CLICK TEST HARNESS (Runs all 5 enterprise verification test suites)
-├── Host/
-│   ├── Host.ps1                 # Multi-threaded HTTP listener & UDP discovery daemon
-│   ├── Publisher.ps1            # Format converter, magic-byte validator, SHA-256 hasher, manifest generator
-│   └── HostConfig.json          # Host network, port, security, and slideshow settings
-├── Client/
-│   ├── Client.ps1               # Client background synchronization and health agent
-│   ├── Wallpaper.ps1            # Win32 P/Invoke desktop wallpaper rotation engine
-│   └── ClientConfig.json        # Client network, host IP, secret, and interval settings
-├── Wallpapers/                  # 📂 SINGLE PHOTO VAULT (Drop photos/videos here; manifest & distribution managed here)
-├── Installer/
-│   ├── Install-Host.bat         # 1-Click elevated host installer bootstrap
-│   ├── Install-Host.ps1         # Elevated host installer script (firewall, tasks, URL ACL)
-│   ├── Install-Client.bat       # 1-Click client installer bootstrap
-│   ├── Install-Client.ps1       # User-session client installer (caching, auto-sync, logon task)
-│   ├── Configure-Firewall.ps1   # Narrow Windows Firewall rule manager
-│   ├── Configure-Startup.ps1    # Windows Task Scheduler registration engine
-│   ├── Uninstall-Host.ps1       # Clean host uninstaller (removes tasks, rules, ACLs)
-│   └── Uninstall-Client.ps1     # Clean client uninstaller (removes tasks, cache)
-├── Tools/
-│   ├── Find-Host.ps1            # LAN UDP broadcast discovery utility
-│   ├── Test-Connection.ps1      # End-to-end network & auth verification tool
-│   ├── Diagnose.ps1             # Comprehensive system, port, firewall & task inspector
-│   └── Deployment-Report.ps1    # Fleet telemetry and online client roster viewer
-├── Tests/
-│   ├── Run-All-Tests.ps1        # Master test harness executing all 5 suites with summary scorecard
-│   ├── Test-Host.ps1            # Automated suite for host endpoints, tokens & RBAC
-│   ├── Test-Publisher.ps1       # Automated suite for file watcher, magic bytes & hashing
-│   ├── Test-Client.ps1          # Automated suite for Win32 API, rotation & mutex
-│   ├── Test-Security.ps1        # Penetration suite for path traversal & auth bypass
-│   └── Test-100Clients.ps1      # 100-client concurrent load benchmark simulation
-├── README.md                    # System architecture and quickstart guide
-├── INSTALLATION-GUIDE.md        # Comprehensive host and client deployment manual
-├── TROUBLESHOOTING.md           # Diagnostic flowcharts and remediation guide
-└── SECURITY.md                  # Threat model, RBAC policies and defense mechanisms
+└── LAN-Dynamic-Wallpaper/
+    ├── Host/
+    │   ├── Host.ps1             # Multi-threaded HTTP listener & UDP discovery daemon
+    │   ├── Publisher.ps1        # Format converter, magic-byte validator, SHA-256 hasher, manifest generator
+    │   └── HostConfig.json      # Host network, port, security, and slideshow settings
+    ├── Client/
+    │   ├── Client.ps1           # Client background synchronization and health agent
+    │   ├── Wallpaper.ps1        # Win32 P/Invoke desktop wallpaper rotation engine
+    │   └── ClientConfig.json    # Client network, host IP, secret, and interval settings
+    ├── Wallpapers/              # 📂 SINGLE PHOTO VAULT (Drop photos/videos here; manifest & distribution managed here)
+    ├── Tools/
+    │   ├── Find-Host.ps1        # LAN UDP broadcast discovery utility
+    │   ├── Test-Connection.ps1  # End-to-end network & auth verification tool
+    │   ├── Diagnose.ps1         # Comprehensive system, port, firewall & task inspector
+    │   └── Deployment-Report.ps1# Fleet telemetry and online client roster viewer
+    ├── Tests/
+    │   ├── Run-All-Tests.ps1    # Master test harness executing all 5 suites with summary scorecard
+    │   ├── Test-Host.ps1        # Automated suite for host endpoints, tokens & RBAC
+    │   ├── Test-Publisher.ps1   # Automated suite for file watcher, magic bytes & hashing
+    │   ├── Test-Client.ps1      # Automated suite for Win32 API, rotation & mutex
+    │   ├── Test-Security.ps1    # Penetration suite for path traversal & auth bypass
+    │   └── Test-100Clients.ps1  # 100-client concurrent load benchmark simulation
+    ├── 3-Test-System.bat        # ⚡ 1-CLICK TEST HARNESS (Runs all 5 enterprise verification test suites)
+    ├── README.md                # System architecture and quickstart guide
+    ├── INSTALLATION-GUIDE.md    # Comprehensive host and client deployment manual
+    ├── TROUBLESHOOTING.md       # Diagnostic flowcharts and remediation guide
+    └── SECURITY.md              # Threat model, RBAC policies and defense mechanisms
 ```
 
 ### 📂 Unified Single-Folder Photo Management: `Wallpapers/`

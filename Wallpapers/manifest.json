@@ -1,19 +1,11 @@
 ﻿{
     "protocolVersion":  "1.0",
-    "collectionVersion":  "v20261022214425_f7a44c00",
-    "timestamp":  "2026-10-22T21:44:25.8412627Z",
+    "collectionVersion":  "v20261022215141_d15345c5",
+    "timestamp":  "2026-10-22T21:51:41.0115333Z",
     "slideshowInterval":  5,
     "totalImages":  2,
-    "totalBytes":  320933,
+    "totalBytes":  1978542,
     "images":  [
-                   {
-                       "name":  "images.jpg",
-                       "hash":  "2370c4e546acb056823797db7e6b5d8d3406d7f23dc43f89a85a61d40c4f3c8f",
-                       "size":  9028,
-                       "extension":  ".jpg",
-                       "modified":  "2026-10-22T20:47:48.0636442Z",
-                       "downloadUrl":  "/api/v1/wallpaper/images.jpg"
-                   },
                    {
                        "name":  "IMG-20260218-WA0011.jpg",
                        "hash":  "2050a6cecab2e3162e444fb5cab349995221b6e65c605b418d368cb85da4c524",
@@ -21,6 +13,14 @@
                        "extension":  ".jpg",
                        "modified":  "2026-10-22T20:48:49.3471557Z",
                        "downloadUrl":  "/api/v1/wallpaper/IMG-20260218-WA0011.jpg"
+                   },
+                   {
+                       "name":  "it logo.png",
+                       "hash":  "392ca5d717df1ce39f49eb1a9b9d4cf58c0168c12f364fe9e2ad4eeecf9c2011",
+                       "size":  1666637,
+                       "extension":  ".png",
+                       "modified":  "2026-10-22T21:51:15.3325784Z",
+                       "downloadUrl":  "/api/v1/wallpaper/it%20logo.png"
                    }
                ]
 }
