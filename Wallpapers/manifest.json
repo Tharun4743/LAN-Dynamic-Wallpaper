@@ -1,10 +1,10 @@
 ﻿{
     "protocolVersion":  "1.0",
-    "collectionVersion":  "v20261022215141_d15345c5",
-    "timestamp":  "2026-10-22T21:51:41.0115333Z",
+    "collectionVersion":  "v20261022215935_3f8a5925",
+    "timestamp":  "2026-10-22T21:59:35.9628975Z",
     "slideshowInterval":  5,
-    "totalImages":  2,
-    "totalBytes":  1978542,
+    "totalImages":  3,
+    "totalBytes":  4328772,
     "images":  [
                    {
                        "name":  "IMG-20260218-WA0011.jpg",
@@ -21,6 +21,14 @@
                        "extension":  ".png",
                        "modified":  "2026-10-22T21:51:15.3325784Z",
                        "downloadUrl":  "/api/v1/wallpaper/it%20logo.png"
+                   },
+                   {
+                       "name":  "VSB Engineering College IT Banner.png",
+                       "hash":  "8ab704f60139971c1827ce846d7d158812c605e74bd339487be0921a3fce8ff8",
+                       "size":  2350230,
+                       "extension":  ".png",
+                       "modified":  "2026-10-22T21:58:56.7304019Z",
+                       "downloadUrl":  "/api/v1/wallpaper/VSB%20Engineering%20College%20IT%20Banner.png"
                    }
                ]
 }
