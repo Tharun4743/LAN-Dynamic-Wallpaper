@@ -47,14 +47,23 @@ net share LAN-Dynamic-Wallpaper="%SHARE_PATH%" /grant:Everyone,READ /users:100 >
 echo  [2/4] Setting folder security access for Everyone (Read & Execute)...
 icacls "%SHARE_PATH%" /grant "Everyone:(OI)(CI)RX" /Q >nul 2>&1
 
-:: 3. Open Windows Firewall for File Sharing
-echo  [3/4] Enabling File Sharing in Windows Firewall...
+:: 3. Open Windows Firewall for File Sharing & Network Discovery
+echo  [3/5] Enabling File Sharing and Network Discovery in Firewall...
 netsh advfirewall firewall set rule group="File and Printer Sharing" new enable=Yes >nul 2>&1
+netsh advfirewall firewall set rule group="Network Discovery" new enable=Yes >nul 2>&1
 
-:: 4. Disable password protected sharing for zero-password LAN access
+:: 4. Ensure Host PC publishes itself so it appears under 'Network' in File Explorer
+echo  [4/5] Activating Network Discovery Service (FDResPub)...
+sc config FDResPub start=auto >nul 2>&1
+net start FDResPub >nul 2>&1
+
+:: 5. Disable password protected sharing for zero-password LAN access
+echo  [5/5] Permitting password-free LAN access...
 reg add "HKLM\SYSTEM\CurrentControlSet\Control\Lsa" /v everyoneincludesanonymous /t REG_DWORD /d 1 /f >nul 2>&1
 
-echo  [4/4] Starting Host Slideshow Server...
+echo.
+echo  Host PC will appear automatically under 'Network' in File Explorer!
+echo  Starting Host Slideshow Server...
 echo.
 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%HOST_SCRIPT%"
