@@ -1,18 +1,18 @@
 ﻿{
     "protocolVersion":  "1.0",
-    "collectionVersion":  "v20261022215935_3f8a5925",
-    "timestamp":  "2026-10-22T21:59:35.9628975Z",
+    "collectionVersion":  "v20261023144820_16007ff2",
+    "timestamp":  "2026-10-23T14:48:20.4923112Z",
     "slideshowInterval":  5,
     "totalImages":  3,
-    "totalBytes":  4328772,
+    "totalBytes":  4069412,
     "images":  [
                    {
-                       "name":  "IMG-20260218-WA0011.jpg",
-                       "hash":  "2050a6cecab2e3162e444fb5cab349995221b6e65c605b418d368cb85da4c524",
-                       "size":  311905,
-                       "extension":  ".jpg",
-                       "modified":  "2026-10-22T20:48:49.3471557Z",
-                       "downloadUrl":  "/api/v1/wallpaper/IMG-20260218-WA0011.jpg"
+                       "name":  "fun quest.jpeg",
+                       "hash":  "3903c7875f7b00b52647959e121898f4f2b493940edf7a9da8058a22717e9942",
+                       "size":  52545,
+                       "extension":  ".jpeg",
+                       "modified":  "2026-02-17T14:47:06.0814493Z",
+                       "downloadUrl":  "/api/v1/wallpaper/fun%20quest.jpeg"
                    },
                    {
                        "name":  "it logo.png",

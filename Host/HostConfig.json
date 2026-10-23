@@ -1,4 +1,4 @@
-{
+﻿{
     "Server":  {
                    "BindAddress":  "0.0.0.0",
                    "Port":  8765,
@@ -9,8 +9,8 @@
                },
     "Security":  {
                      "_comment_secrets":  "AuthSecret and AdminSecret are auto-generated cryptographically on first run or installation if left blank",
-                     "AuthSecret":  "",
-                     "AdminSecret":  "",
+                     "AuthSecret":  "394f0d6db8e81e05d7e17e079db8d756477a9258e45ce5bed198740126a2afdf",
+                     "AdminSecret":  "4ff6f5b92b429f137a95e2aef7940ce368527f4b40c9c1e4b28a06e8dd107b0a",
                      "RequireAuthentication":  true,
                      "AutoEnrollLanClients":  true,
                      "MaxImageSizeBytes":  104857600,

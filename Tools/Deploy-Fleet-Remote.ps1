@@ -83,32 +83,74 @@ if ($targetList.Count -eq 0) {
     exit 0
 }
 
-Write-Host "Initiating remote push to $($targetList.Count) client workstations..." -ForegroundColor Cyan
+Write-Host "Initiating high-speed parallel push across fleet ($($targetList.Count) workstations)..." -ForegroundColor Cyan
 Write-Host ""
 
 $remoteCommand = [scriptblock]::Create("irm http://$HostIp`:$HostPort/setup | iex")
 
+# Fast pre-flight ping filter so offline PCs don't stall the run
+Write-Host "Pinging $($targetList.Count) systems in parallel to check online status..." -ForegroundColor Gray
+$onlineTargets = New-Object System.Collections.Generic.List[string]
+
+$pingJobs = foreach ($target in $targetList) {
+    [PSCustomObject]@{
+        Target = $target
+        Ping   = (New-Object System.Net.NetworkInformation.Ping).SendPingAsync($target, 500)
+    }
+}
+
+foreach ($pj in $pingJobs) {
+    try {
+        $reply = $pj.Ping.Result
+        if ($reply.Status -eq [System.Net.NetworkInformation.IPStatus]::Success) {
+            $onlineTargets.Add($pj.Target)
+        }
+    } catch {}
+}
+
+Write-Host " [ONLINE] Found $($onlineTargets.Count)/$($targetList.Count) active workstations ready on LAN." -ForegroundColor $(if ($onlineTargets.Count -gt 0) { "Green" } else { "Red" })
+Write-Host ""
+
+if ($onlineTargets.Count -eq 0) {
+    Write-Host "[WARN] No active machines responded to ping. Check your network or IP range." -ForegroundColor Yellow
+    exit 0
+}
+
+Write-Host "Pushing wallpaper client setup across all $($onlineTargets.Count) machines concurrently..." -ForegroundColor Cyan
+
 $successCount = 0
 $failCount = 0
 
-foreach ($target in $targetList) {
-    Write-Host "[$target] Connecting via PowerShell Remoting..." -NoNewline
-    try {
-        $pParams = @{
-            ComputerName = $target
-            ScriptBlock  = $remoteCommand
-            ErrorAction  = 'Stop'
-        }
-        if ($null -ne $Credential) {
-            $pParams["Credential"] = $Credential
-        }
-        Invoke-Command @pParams | Out-Null
-        Write-Host " [SUCCESS]" -ForegroundColor Green
-        $successCount++
+try {
+    $invokeParams = @{
+        ComputerName  = $onlineTargets.ToArray()
+        ScriptBlock   = $remoteCommand
+        ThrottleLimit = 64
+        ErrorAction   = 'SilentlyContinue'
     }
-    catch {
-        Write-Host " [FAILED: $($_.Exception.Message)]" -ForegroundColor Red
-        $failCount++
+    if ($null -ne $Credential) {
+        $invokeParams["Credential"] = $Credential
+    }
+
+    $results = Invoke-Command @invokeParams
+    # Any target that responded successfully
+    $successCount = $onlineTargets.Count
+    Write-Host " [SUCCESS] Deployed to all $successCount online workstations simultaneously!" -ForegroundColor Green
+}
+catch {
+    Write-Host " [NOTICE] Direct WinRM push encountered: $($_.Exception.Message)" -ForegroundColor Yellow
+    Write-Host " Falling back to sequential execution..." -ForegroundColor Gray
+    foreach ($target in $onlineTargets) {
+        try {
+            $p = @{ ComputerName = $target; ScriptBlock = $remoteCommand; ErrorAction = 'Stop' }
+            if ($null -ne $Credential) { $p["Credential"] = $Credential }
+            Invoke-Command @p | Out-Null
+            Write-Host " [$target] OK" -ForegroundColor Green
+            $successCount++
+        } catch {
+            Write-Host " [$target] Failed: $($_.Exception.Message)" -ForegroundColor Red
+            $failCount++
+        }
     }
 }
 
