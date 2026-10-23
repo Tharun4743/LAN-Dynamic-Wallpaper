@@ -1,47 +1,80 @@
 {
-    "Server":  {
-                   "BindAddress":  "0.0.0.0",
-                   "Port":  8765,
-                   "DiscoveryPort":  8766,
-                   "EnableDiscovery":  true,
-                   "MaxConcurrentRequests":  128,
-                   "RequestTimeoutSeconds":  30
-               },
-    "Security":  {
-                     "_comment_secrets":  "AuthSecret and AdminSecret are auto-generated cryptographically on first run or installation if left blank",
-                     "AuthSecret":  "",
-                     "AdminSecret":  "",
-                     "RequireAuthentication":  true,
-                     "AutoEnrollLanClients":  true,
-                     "MaxImageSizeBytes":  104857600,
-                     "MaxPhotosCapacity":  10000,
-                     "AllowedExtensions":  [
-                                               ".jpg",
-                                               ".jpeg",
-                                               ".png",
-                                               ".bmp",
-                                               ".gif",
-                                               ".webp",
-                                               ".heic",
-                                               ".heif",
-                                               ".tiff",
-                                               ".tif",
-                                               ".ico",
-                                               ".mp4",
-                                               ".mov",
-                                               ".wmv",
-                                               ".avi",
-                                               ".mkv"
-                                           ]
-                 },
-    "Slideshow":  {
-                      "_comment_timer":  "SLIDESHOW TIMER: To change interval in seconds, edit DefaultIntervalSeconds below (e.g., 5 for 5s, 10 for 10s, 60 for 1min, 300 for 5min)",
-                      "DefaultIntervalSeconds":  5
-                  },
-    "Paths":  {
-                  "WallpapersDir":  "../Wallpapers",
-                  "PublishedDir":  "../Wallpapers",
-                  "LogsDir":  "../Logs",
-                  "ClientsStore":  "./clients.json"
-              }
+  "_comment_overview": "LAN Dynamic Wallpaper - Central Host Configuration File",
+
+  "Server": {
+    "_comment_bind": "IP address to bind the HTTP server to (0.0.0.0 binds to all available network adapters)",
+    "BindAddress": "0.0.0.0",
+
+    "_comment_port": "TCP port for client HTTP connections and wallpaper image streaming",
+    "Port": 8765,
+
+    "_comment_disc_port": "UDP port used for LAN broadcast discovery beacon responses",
+    "DiscoveryPort": 8766,
+
+    "_comment_enable_disc": "Enable automatic discovery beacon so clients locate this server without manual IP typing",
+    "EnableDiscovery": true,
+
+    "_comment_max_conn": "Maximum concurrent client connections allowed by the HTTP listener",
+    "MaxConcurrentRequests": 128,
+
+    "_comment_timeout": "HTTP request timeout threshold in seconds",
+    "RequestTimeoutSeconds": 30
+  },
+
+  "Security": {
+    "_comment_secrets": "AuthSecret and AdminSecret are auto-generated cryptographically (256-bit) on first launch if left empty",
+    "AuthSecret": "",
+    "AdminSecret": "",
+
+    "_comment_auth_req": "Require authentication token on private client endpoints",
+    "RequireAuthentication": true,
+
+    "_comment_auto_enroll": "Automatically enroll clients connecting from private LAN subnets (192.168.*, 10.*, 172.16-31.*)",
+    "AutoEnrollLanClients": true,
+
+    "_comment_max_size": "Maximum allowed size per uploaded wallpaper file in bytes (104857600 = 100 MB)",
+    "MaxImageSizeBytes": 104857600,
+
+    "_comment_max_photos": "Maximum fleet wallpaper photo capacity",
+    "MaxPhotosCapacity": 10000,
+
+    "_comment_exts": "Whitelisted media file extensions allowed in the Wallpapers folder",
+    "AllowedExtensions": [
+      ".jpg",
+      ".jpeg",
+      ".png",
+      ".bmp",
+      ".gif",
+      ".webp",
+      ".heic",
+      ".heif",
+      ".tiff",
+      ".tif",
+      ".ico",
+      ".mp4",
+      ".mov",
+      ".wmv",
+      ".avi",
+      ".mkv"
+    ]
+  },
+
+  "Slideshow": {
+    "_comment_timer": "SLIDESHOW ROTATION INTERVAL: Time in seconds between wallpaper changes (e.g., 5 = 5s, 10 = 10s, 60 = 1 min). Host auto-reloads this setting dynamically without restarting!",
+    "DefaultIntervalSeconds": 5
+  },
+
+  "Paths": {
+    "_comment_wallpapers": "Directory where you drop wallpapers and photos (relative to Host/)",
+    "WallpapersDir": "../Wallpapers",
+
+    "_comment_published": "Directory where validated wallpapers are published for client streaming",
+    "PublishedDir": "../Wallpapers",
+
+    "_comment_logs": "Directory where daily rotating server log files are stored",
+    "LogsDir": "../Logs",
+
+    "_comment_store": "JSON store recording registered client nodes, MACs, and online statuses",
+    "ClientsStore": "./clients.json"
+  }
 }

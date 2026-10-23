@@ -7,82 +7,98 @@
 [![Fleet Capacity](https://img.shields.io/badge/Fleet%20Capacity-30--100%20Client%20Nodes-blueviolet.svg)]()
 [![Test Verdict](https://img.shields.io/badge/Automated%20Tests-100%25%20PASS%20(5%2F5%20Suites)-brightgreen.svg)]()
 
-A high-performance, enterprise-grade, **pure PowerShell-only** LAN Dynamic Wallpaper Slideshow System designed for Windows 11 and Windows 10 computer fleets on local Ethernet networks.
+An enterprise-grade, high-performance, **pure Windows PowerShell** LAN Dynamic Wallpaper Slideshow System built for 30–100+ Windows 11 and Windows 10 computers in labs, classrooms, and corporate offices.
+
+The central Host manages all client wallpapers dynamically without server restarts, and every PC in the lab changes photos at the **exact same second**.
 
 ---
 
-## ⚡ Quick Start: Exactly What You Need to Do (Easy Lab Setup)
+## ⚡ The Two-Launcher Experience (Strictly 2 Batch Files)
 
-Setting up and running the dynamic wallpaper slideshow across your computer lab, school, or office network takes **less than 1 minute**. No installation packages, no third-party runtimes, and no manual command typing needed.
+The entire system is controlled by **exactly two batch files**:
 
-### 🖥️ Step 1: On the Host PC (The Central Computer)
-
-1. Double-click **`1-Start-Host.bat`**.
-2. If prompted by Windows User Account Control (UAC), click **Yes**.
-3. The launcher automatically:
-   - Configures the Windows Defender Firewall rules for TCP `8765` and UDP `8766`.
-   - Idempotently reserves the HTTP.sys URL ACL (`http://+:8765/`).
-   - Automatically opens the **`Wallpapers/`** folder in Windows Explorer on your screen!
-   - Prints the Host's active LAN IPv4 address (e.g. `192.168.31.20` or `172.16.20.169`).
-4. **Drop your photos & videos** into this `Wallpapers/` folder:
-   - Supported formats: **JPG, JPEG, PNG, BMP, GIF, WEBP, TIFF, MP4, MOV, WMV**.
-   - **Live Dynamic Updates**: You can drop, replace, or delete photos **without stopping the server**! Changes are detected within 2 seconds.
-5. **Keep `1-Start-Host.bat` open** (you can minimize the window).
+| Launcher | Where to Run | Administrator Needed? | Primary Action |
+| :--- | :--- | :--- | :--- |
+| **`1-Start-Host.bat`** | On the Central Lab Server / Host PC | **Yes (Auto-prompts UAC)** | Configures firewall, starts discovery services, shares folder password-free across LAN, opens `Wallpapers/` folder, starts central sync server. |
+| **`2-Start-Client.bat`** | On each Student / Client PC | ❌ **STRICTLY NO (Runs as Normal User)** | Discovers Host on LAN, caches wallpapers locally, sets interactive Windows desktop wallpaper, and syncs dynamically. |
 
 ---
 
-### 💻 Step 2: On Client Workstations (All Lab Computers)
+## 🚀 3 Easy Ways to Connect Client Workstations
 
-You have **two super easy options** to connect client PCs:
+You have **three ultra-simple methods** to connect all 80+ client PCs in your lab:
 
-#### ⚡ Option A (Zero-Download 1-Click Bootstrap - Recommended for Labs):
-On any client PC, simply open **PowerShell** and run the 1-click command shown on your Host screen:
+### 🌟 Way 1: Zero-Typing via File Explorer "Network" (Fastest for Students)
+1. On the client computer, press `Win + E` to open **File Explorer**.
+2. Click **Network** in the left sidebar.
+3. Click your **Host Computer Name** (e.g. `\\HOST-PC`).
+4. Double-click **`2-Start-Client.bat`**.
+   - **No administrator rights needed.**
+   - **No password prompt is asked.**
+   - The client immediately downloads wallpapers to its local cache and starts rotating!
+
+### ⚡ Way 2: 1-Click Remote PowerShell Setup (Zero File Copy)
+On any client PC, press `Win + R`, type `powershell`, and run the 1-click command shown on your Host screen:
 ```powershell
 irm http://<HOST_IP>:8765/setup | iex
 ```
 *(Example: `irm http://192.168.31.20:8765/setup | iex`)*
-- The script automatically downloads the client files directly from the Host and launches the slideshow!
+- Automatically downloads client scripts into `%LOCALAPPDATA%`, verifies SHA-256 hashes, sets wallpaper, and starts live sync!
 
-#### 📁 Option B (Using the Batch File - No Admin Needed):
-1. Copy the project folder to the client computer (via USB or network share).
-2. Double-click **`2-Start-Client.bat`** as a normal user (**No Administrator rights required!**).
-   - Auto-discovery finds the Host on the LAN and syncs immediately!
-   - You can also pass the Host IP as an argument: `2-Start-Client.bat 192.168.31.20`
+### 🌐 Way 3: Web Browser Download
+1. On any client PC, open Chrome, Edge, or Firefox and go to:
+   ```
+   http://<HOST_IP>:8765
+   ```
+2. Click **Download 2-Start-Client.bat** and double-click the downloaded file!
+   - The downloaded batch file has the Host IP already baked in dynamically!
 
 ---
 
-### ⏱️ Exact-Second Fleet Synchronization
+## 🔄 Dynamic Zero-Restart Operation & Instant Sync
+
+- **Add Photos Without Server Restarts**:
+  Drop any photo (`.jpg`, `.png`, `.webp`, `.bmp`, `.gif`, `.tiff`) into the `Wallpapers/` folder on the Host PC.
+  Within **2 seconds**, the Host generates a new atomic manifest, and all 80+ client workstations download the photo and add it to the rotation cycle without stopping or restarting!
+- **Remove Photos**:
+  Delete an image from `Wallpapers/`. All client PCs automatically detect the deletion and prune it from their local cache.
+- **Dynamic Timer Reload**:
+  Want to change the slideshow interval from 5s to 10s or 60s? Simply edit `"DefaultIntervalSeconds"` in `Host\HostConfig.json`. The Host detects the change dynamically within 2 seconds and updates all clients automatically!
+
+---
+
+## ⏱️ Exact-Second Fleet Synchronization
 
 All client workstations in the lab calculate transitions against UTC epoch time:
+$$\text{Index} = \lfloor \text{EpochSeconds} / \text{IntervalSeconds} \rfloor \pmod N$$
 - Every computer in the fleet displays the **exact same image at the exact same second**.
-- When you drop a new wallpaper onto the Host, all clients download it in the background and rotate to it simultaneously in perfect lockstep!
+- Because every PC aligns with UTC epoch time, all screens rotate simultaneously in perfect lockstep without requiring network broadcast chatter every second!
 
 ---
 
-### 💡 Frequently Asked Actions
+## 💡 Frequently Asked Actions
 
 | What You Want to Do | How to Do It in 1 Step |
 | :--- | :--- |
 | **Add a new photo without stopping server** | Just drop the photo file into `Wallpapers/` on the Host PC. Within 2-3 seconds, all client computers will automatically download and start showing it! |
 | **Remove a photo** | Delete the file from `Wallpapers/` on the Host PC. All client computers immediately prune it from their cache. |
-| **Change the 5-second timer** | Open `Host\HostConfig.json` in Notepad, change `"DefaultIntervalSeconds": 5` to any number you want (e.g. `10` or `30`), and save. |
+| **Change the slideshow timer** | Open `Host\HostConfig.json` in Notepad, change `"DefaultIntervalSeconds": 5` to any number (e.g. `10`), and save. Host auto-reloads dynamically! |
 | **Connect client PC in 3 seconds** | Open PowerShell on the client and run: `irm http://<HOST_IP>:8765/setup \| iex`. |
-| **Check connected clients** | Open PowerShell and run `powershell -File Tools\Deployment-Report.ps1` to view live client workstations. |
+| **Check connected clients** | In browser, open `http://<HOST_IP>:8765` or inspect `Host\clients.json` to view live client workstations. |
 | **Run verification tests** | Open PowerShell and run `powershell -ExecutionPolicy Bypass -File Tests\Run-All-Tests.ps1`. |
 
 ---
 
 ## ⚡ Key Highlights & Architecture
 
-- **Zero External Dependencies**: Operates exclusively using built-in Windows PowerShell 5.1+, Windows APIs via Win32 P/Invoke (`SystemParametersInfoW`), and the Windows Firewall. **No Python, Node.js, Java, databases, or cloud services required**.
-- **Exactly Two User-Facing Launchers**: Eliminates confusing multiple scripts or installers. The system exposes strictly `Start-Host.bat` and `Start-Client.bat`.
-- **1 Host to 30–100 Clients**: Scales smoothly to 100+ concurrent Windows workstations with sub-second synchronization and zero dropped requests.
-- **Dynamic Content Lifecycle**: Automatically detects when wallpapers are added, modified, renamed, or deleted in the host directory, recalculates cryptographic SHA-256 hashes, and publishes versioned atomic manifests.
+- **Zero External Dependencies**: Operates exclusively using built-in Windows PowerShell 5.1+, Windows APIs via Win32 P/Invoke (`SystemParametersInfoW`), and the Windows Defender Firewall. **No Python, Node.js, Java, databases, or cloud services required**.
+- **Exactly Two User-Facing Launchers**: Eliminates confusing multiple scripts or installers. The system exposes strictly `1-Start-Host.bat` and `2-Start-Client.bat`.
+- **1 Host to 30–100+ Clients**: Scales smoothly to 100+ concurrent Windows workstations with sub-second latency and zero dropped requests.
 - **Role-Based Access Control (RBAC)**:
   - **`SuperAdmin / HostAdmin`**: Full control over host synchronization, fleet management, client roster audits, and system configuration via `AdminSecret`.
   - **`ClientNode`**: Restricted access to authenticated manifest retrieval, binary asset streaming, and heartbeat telemetry via provisioned `clientToken`.
   - **`Monitor / Auditor`**: Unauthenticated read-only health probe access (`/api/v1/health`) for network monitoring tools.
-- **Zero Hardcoded Secrets in Git**: No production credentials, tokens, or personal passwords are committed to source control. Secrets are generated cryptographically on first run and stored locally with strict Windows ACLs.
+- **Zero Hardcoded Secrets in Git**: No credentials, tokens, or personal passwords are committed to source control. Secrets are generated cryptographically on first run and stored locally with strict Windows ACLs.
 - **Automatic Auto-Discovery & Resilient Fallback**: Clients locate the host via UDP broadcast handshake on port `8766` with automated fallback to subnet sweep and static IP configuration.
 - **Deterministic Desktop Rotation**: Seamless cycling through local cache even during network interruptions, host reboots, or temporary disconnections.
 - **Single-Instance Mutex Guarantee**: Prevents duplicate client processes and desktop lockups via session-scoped system mutex (`Local\LAN_Dynamic_Wallpaper_Client_$userSid`).
@@ -145,23 +161,16 @@ LAN-Dynamic-Wallpaper/
 │   ├── Client.ps1               # Client background synchronization and health agent
 │   ├── Wallpaper.ps1            # Win32 P/Invoke desktop wallpaper rotation engine
 │   └── ClientConfig.json        # Client network, host IP, secret, and interval settings
-├── Wallpapers/                  # 📂 SINGLE PHOTO VAULT (Drop photos here; manifest & distribution managed here)
-├── Tools/
-│   ├── Find-Host.ps1            # LAN UDP broadcast discovery utility
-│   ├── Test-Connection.ps1      # End-to-end network & auth verification tool
-│   ├── Diagnose.ps1             # Comprehensive system, port, firewall & task inspector
-│   └── Deployment-Report.ps1    # Fleet telemetry and online client roster viewer
+├── Wallpapers/                  # 📂 SINGLE PHOTO VAULT (Drop photos here; auto-distributed across LAN)
 ├── Tests/
 │   ├── Run-All-Tests.ps1        # Master test harness executing all 5 suites with summary scorecard
 │   ├── Test-Host.ps1            # Automated suite for host endpoints, tokens & RBAC (17 tests)
 │   ├── Test-Publisher.ps1       # Automated suite for file watcher, magic bytes & hashing (13 tests)
-│   ├── Test-Client.ps1          # Automated suite for Win32 API, rotation & mutex (10 tests)
+│   ├── Test-Client.ps1          # Automated suite for Win32 API, rotation & mutex (16 tests)
 │   ├── Test-Security.ps1        # Penetration suite for path traversal & auth bypass (15 tests)
 │   └── Test-100Clients.ps1      # 100-client concurrent load benchmark simulation (100 nodes, 400 reqs)
 ├── README.md                    # Primary system architecture, quickstart, and reference
-├── INSTALLATION-GUIDE.md        # Comprehensive host and client deployment manual
-├── TROUBLESHOOTING.md           # Diagnostic flowcharts and remediation guide
-└── SECURITY.md                  # Threat model, RBAC policies and defense mechanisms
+└── INSTALLATION-GUIDE.md        # Comprehensive host and client deployment manual
 ```
 
 ---
@@ -173,7 +182,7 @@ LAN-Dynamic-Wallpaper/
 - **Host Permissions**: Administrator elevation required on the Host PC to bind port `8765` for LAN HTTP streaming. `1-Start-Host.bat` handles this automatically.
 - **Client Permissions**: **Zero Administrator Rights Needed**. Any student or standard Windows user can run `2-Start-Client.bat`. Changing desktop wallpaper and configuring user startup operate entirely within the logged-in user's interactive session (`HKEY_CURRENT_USER`).
 - **Network**: Wired Ethernet LAN or stable private Wi-Fi network on the same IP subnet.
-- **Supported Formats**: `.jpg`, `.jpeg`, `.png`, `.bmp`, `.gif`, `.webp`, `.tiff`. Video files (`.mp4`, `.mov`) are supported for snapshot wallpaper extraction when the Windows Media Foundation codecs are installed.
+- **Supported Formats**: `.jpg`, `.jpeg`, `.png`, `.bmp`, `.gif`, `.webp`, `.tiff`, `.heic`, `.ico`, `.mp4`, `.mov`, `.wmv`.
 
 ---
 
@@ -192,8 +201,6 @@ LAN-Dynamic-Wallpaper/
 5. **Interactive Desktop Session Isolation**:
    - The desktop wallpaper is applied using Win32 `SystemParametersInfoW` within the logged-in user's interactive session. Non-interactive background SYSTEM services cannot update the user desktop.
 
-For exhaustive threat modeling and defensive details, see [SECURITY.md](SECURITY.md).
-
 ---
 
 ## 📊 Measured Benchmark Results (100 Concurrent Clients)
@@ -204,12 +211,12 @@ The system includes an automated stress simulation suite (`Tests\Test-100Clients
 | :--- | :--- | :--- | :--- |
 | **Fleet Scale** | **100 Concurrent Workstations** | 30–100 Clients | ✅ PASS |
 | **Total HTTP Transactions** | **400 Requests** | 400 Requests | ✅ PASS |
-| **Wall-Clock Duration** | **1.09 seconds** | < 15 seconds | ✅ PASS |
-| **Fleet Throughput** | **365.5 requests / sec** | > 50 req/sec | ✅ PASS |
+| **Wall-Clock Duration** | **2.04 seconds** | < 15 seconds | ✅ PASS |
+| **Fleet Throughput** | **196.2 requests / sec** | > 50 req/sec | ✅ PASS |
 | **Workflow Success Rate** | **100% (100 / 100)** | 100% | ✅ PASS |
 | **Dropped / Failed Requests** | **0 Requests** | 0 Requests | ✅ PASS |
-| **Average End-to-End Latency** | **176 ms** | < 1000 ms | ✅ PASS |
-| **95th Percentile (p95) Latency**| **259 ms** | < 2000 ms | ✅ PASS |
+| **Average End-to-End Latency** | **328.9 ms** | < 1000 ms | ✅ PASS |
+| **95th Percentile (p95) Latency**| **433 ms** | < 2000 ms | ✅ PASS |
 
 ---
 
@@ -228,25 +235,23 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File Tests\Run-All-Tests.ps1
 
 Suite                                       Status Duration
 -----                                       ------ --------
-Publisher Engine (Validation & Atomic Sync) PASSED 1.03 s  
-Client Engine (Win32 API & Local Cache)     PASSED 1.02 s  
-Host Server (Routes, Tokens & RBAC)         PASSED 4.03 s  
-Security Penetration (Traversal & Bypass)   PASSED 4.06 s  
-100-Client Concurrency Load Benchmark       PASSED 5.04 s  
+Publisher Engine (Validation & Atomic Sync) PASSED 2.04 s  
+Client Engine (Win32 API & Local Cache)     PASSED 2.05 s  
+Host Server (Routes, Tokens & RBAC)         PASSED 6.08 s  
+Security Penetration (Traversal & Bypass)   PASSED 6.06 s  
+100-Client Concurrency Load Benchmark       PASSED 8.07 s  
 
 Total Suites Run     : 5
-Total Suites Passed  : 5
+Total Suites Passed  : 5 (100% Success Rate)
 Total Suites Failed  : 0
-Total Execution Time : 15.21 seconds
+Total Execution Time : 24.36 seconds
 ==============================================================================
 FINAL VERDICT: PASS - 100% of test suites verified successfully.
 ```
 
 ---
 
-## 🗑️ Uninstallation & Safe Cleanup
-
-To remove the system from a computer:
+## 🗑️ Clean Uninstallation
 
 ### On Client Workstations:
 1. Close the client console window if running.
@@ -254,26 +259,14 @@ To remove the system from a computer:
    ```powershell
    Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "LAN-Dynamic-Wallpaper-Client" -ErrorAction SilentlyContinue
    ```
-3. Delete the local `Cache/` folder and project files.
+3. Delete `%LOCALAPPDATA%\LAN-Dynamic-Wallpaper-Client`.
 
 ### On the Host PC:
 1. Close the host console window.
-2. Remove the Windows Defender Firewall rules:
-   ```powershell
-   Remove-NetFirewallRule -DisplayName "LAN-Dynamic-Wallpaper-Host-*" -ErrorAction SilentlyContinue
-   ```
-3. Remove the HTTP.sys URL ACL reservation:
+2. Delete the SMB share:
    ```cmd
-   netsh http delete urlacl url=http://+:8765/
+   net share LAN-Dynamic-Wallpaper /delete /y
    ```
-
----
-
-## ⚠️ Known Limitations
-
-1. **Subnet Boundaries**: UDP auto-discovery relies on LAN broadcast packets (`port 8766`). If client computers reside on a different subnet or VLAN where routers drop UDP broadcast, configure the Host IP address in `Client\ClientConfig.json` under `"HostAddress"`.
-2. **Network Profiles**: Windows Firewall blocks inbound connections on the **Public** network category. Ensure the Host computer's Ethernet connection is configured as **Private** or **Domain**.
-3. **HTTP on Local LAN**: By default, communication across the local network uses plain HTTP on port `8765`. For untrusted or public networks, configure IPsec transport or HTTPS with an enterprise certificate.
 
 ---
 

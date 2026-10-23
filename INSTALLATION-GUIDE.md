@@ -1,6 +1,6 @@
 # 📖 LAN Dynamic Wallpaper: Complete Installation & Deployment Guide
 
-This guide details the complete deployment lifecycle for the LAN Dynamic Wallpaper Slideshow System across 1 Host Administrator PC and 30–100+ Client Workstations on a local wired or wireless LAN.
+This guide details the complete deployment lifecycle for the LAN Dynamic Wallpaper Slideshow System across 1 Central Host PC and 30–100+ Client Workstations on a local wired or wireless LAN.
 
 ---
 
@@ -45,29 +45,39 @@ The entire system is controlled by **exactly two user-friendly batch files**:
    - The launcher will start the central server and display the Host IP address (e.g., `192.168.31.20` or `172.16.20.169`).
 3. The server will automatically open the **`Wallpapers/`** folder in Windows Explorer.
 4. **Drop your photos or images** into the `Wallpapers/` folder:
-   - Supported formats: **`.jpg`**, **`.jpeg`**, **`.png`**, **`.bmp`**, **`.gif`**, **`.webp`**, **`.tiff`**.
+   - Supported formats: **`.jpg`**, **`.jpeg`**, **`.png`**, **`.bmp`**, **`.gif`**, **`.webp`**, **`.tiff`**, **`.heic`**, **`.mp4`**, **`.mov`**, **`.wmv`**.
 5. **Done!** The Host is now actively broadcasting and serving wallpapers over LAN. Keep the console window open (you can minimize it).
 
 ---
 
 ### Part 2: Client Workstation Deployment (Student / Workstation PCs)
 
-You can connect client workstations using either of the following two quick methods:
+You have **three ultra-simple methods** to connect client workstations:
 
-#### Method A: Double-Click the Batch File (Recommended)
-1. Copy the project folder to the client workstation (or open it from a shared USB/LAN folder).
-2. Double-click **`2-Start-Client.bat`** as a normal standard user.
-   - **No "Run as administrator" is required!**
-   - The client immediately discovers the Host on the LAN via UDP probe on port `8766`.
-   - It downloads all wallpapers into local cache and applies the active wallpaper immediately to the screen.
+#### 🌟 Method A: Zero-Typing via File Explorer "Network" (Fastest for Students)
+1. On the client computer, press `Win + E` to open **File Explorer**.
+2. Click **Network** in the left sidebar.
+3. Click your **Host Computer Name** (e.g. `\\HOST-PC`).
+4. Double-click **`2-Start-Client.bat`**.
+   - **No administrator rights needed.**
+   - **No password prompt is asked.**
+   - The client immediately downloads wallpapers to its local cache and starts rotating!
 
-#### Method B: 1-Click Remote PowerShell Setup (No Folder Copy Needed)
-On any client PC, simply open PowerShell and run this one-line command (replace with your Host IP):
+#### ⚡ Method B: 1-Click Remote PowerShell Setup (Zero File Copy Needed)
+On any client PC, simply open **PowerShell** and run the 1-click command shown on your Host screen:
 ```powershell
-irm http://<HOST-IP>:8765/setup | iex
+irm http://<HOST_IP>:8765/setup | iex
 ```
-*Example:* `irm http://192.168.31.20:8765/setup | iex`
-- This automatically downloads the client script, caches all wallpapers, applies the desktop wallpaper, and starts live synchronization.
+*(Example: `irm http://192.168.31.20:8765/setup | iex`)*
+- Automatically downloads client scripts directly into `%LOCALAPPDATA%`, verifies SHA-256 hashes, sets wallpaper, and starts live sync!
+
+#### 🌐 Method C: Web Browser Download
+1. On any client PC, open Chrome, Edge, or Firefox and go to:
+   ```
+   http://<HOST_IP>:8765
+   ```
+2. Click **Download 2-Start-Client.bat** and double-click the downloaded file!
+   - The downloaded batch file has the Host IP already baked in dynamically!
 
 ---
 
@@ -77,13 +87,16 @@ The system includes continuous real-time directory synchronization:
 
 - **Add an Image**:
   Drop any new `.jpg`, `.png`, or `.webp` file into the `Wallpapers/` folder on the Host PC.
-  Within ~2 seconds, all connected client PCs detect the update, download the new image, and include it in the rotation cycle without stopping or restarting the server.
+  Within **2 seconds**, all connected client PCs detect the update, download the new image, and include it in the rotation cycle without stopping or restarting the server.
 - **Replace an Image**:
   Overwrite an existing image in `Wallpapers/` with an updated file.
   The Host detects the changed SHA-256 hash and clients update their local copy seamlessly.
 - **Delete an Image**:
   Delete an image from `Wallpapers/`.
   The Host updates the collection manifest and clients cleanly prune the deleted file from their cache.
+- **Change Slideshow Timer**:
+  Open `Host\HostConfig.json` in Notepad, change `"DefaultIntervalSeconds": 5` to any number of seconds (e.g., `10` or `60`), and save.
+  The Host detects the change dynamically within **2 seconds** and all clients adapt their slideshow timer without server restarts!
 
 ---
 
@@ -93,7 +106,7 @@ All computers in the lab rotate their wallpaper at the **exact same second**:
 - The slideshow uses UTC Unix epoch alignment:
   $$\text{Index} = \lfloor \text{EpochSeconds} / \text{IntervalSeconds} \rfloor \pmod N$$
 - Every PC in the lab calculates the exact same index simultaneously.
-- Default rotation interval: **5 seconds** (configurable in `Host/HostConfig.json`).
+- Default rotation interval: **5 seconds** (configurable dynamically in `Host/HostConfig.json`).
 
 ---
 
@@ -104,7 +117,7 @@ Some administrators wonder whether standard users can change desktop wallpaper w
 1. **Win32 User32 API**: `SystemParametersInfoW(SPI_SETDESKWALLPAPER, 0, path, SPIF_UPDATEINIFILE | SPIF_SENDCHANGE)` operates directly on the current user's desktop session. It does not touch system-wide protected files or elevated kernel drivers.
 2. **Current User Registry**: Wallpaper settings are stored in `HKCU:\Control Panel\Desktop` (`HKEY_CURRENT_USER`). Standard Windows users have full read and write access to their own user registry hive.
 3. **Logon Auto-Start**: The startup registry key `HKCU:\Software\Microsoft\Windows\CurrentVersion\Run` is also located in `HKEY_CURRENT_USER`. Standard users can register startup programs for their own account without administrative privileges.
-4. **Local Cache**: Downloaded wallpapers are stored in the client application's local directory (`Client\Cache\`), where the user has normal write permissions.
+4. **Local Cache Isolation**: When run from a read-only network share, downloaded wallpapers and configs are automatically redirected to `%LOCALAPPDATA%\LAN-Dynamic-Wallpaper-Client\`, where the user has full normal write permissions.
 
 ---
 
@@ -112,9 +125,13 @@ Some administrators wonder whether standard users can change desktop wallpaper w
 
 ### Issue: Client Shows "UDP broadcast silent / Host not found"
 - **Solution 1**: Verify the Host PC is running `1-Start-Host.bat` and connected to the same network.
-- **Solution 2**: Specify the Host IP manually by editing `Client\ClientConfig.json` or running:
+- **Solution 2**: Launch `2-Start-Client.bat` with the Host IP directly:
+  ```cmd
+  2-Start-Client.bat 192.168.31.20
+  ```
+- **Solution 3**: Or use the 1-click PowerShell bootstrap:
   ```powershell
-  powershell -ExecutionPolicy Bypass -File Client\Client.ps1 -HostOverride "192.168.31.20"
+  irm http://192.168.31.20:8765/setup | iex
   ```
 
 ### Issue: Host Fails to Bind Port 8765
@@ -134,7 +151,11 @@ Some administrators wonder whether standard users can change desktop wallpaper w
    ```powershell
    Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "LAN-Dynamic-Wallpaper-Client" -ErrorAction SilentlyContinue
    ```
-3. Delete the `LAN-Dynamic-Wallpaper` folder.
+3. Delete `%LOCALAPPDATA%\LAN-Dynamic-Wallpaper-Client`.
 
 ### To Stop Host Server:
 1. Close the `1-Start-Host.bat` console window.
+2. To remove the SMB share:
+   ```cmd
+   net share LAN-Dynamic-Wallpaper /delete /y
+   ```

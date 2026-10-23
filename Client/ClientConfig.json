@@ -1,27 +1,56 @@
 {
+  "_comment_overview": "LAN Dynamic Wallpaper - Client Workstation Configuration File",
+
   "Connection": {
+    "_comment_host_addr": "IP or Hostname of the Host PC (Leave empty for automatic UDP discovery + subnet sweep)",
     "HostAddress": "",
+
+    "_comment_host_port": "HTTP port of the central Host server",
     "HostPort": 8765,
+
+    "_comment_disc_port": "UDP broadcast port for LAN discovery beacon",
     "DiscoveryPort": 8766,
+
+    "_comment_enable_disc": "Enable automatic discovery of Host PC on LAN if HostAddress is empty",
     "EnableDiscovery": true,
+
+    "_comment_disc_timeout": "Timeout in seconds to wait for UDP broadcast discovery response",
     "DiscoveryTimeoutSeconds": 4,
+
+    "_comment_poll_interval": "Interval in seconds to check Host for new wallpaper additions, modifications, or deletions",
     "PollIntervalSeconds": 5,
+
+    "_comment_max_backoff": "Maximum backoff ceiling in seconds if Host goes offline",
     "MaxBackoffSeconds": 30,
+
+    "_comment_req_timeout": "HTTP request timeout threshold in seconds",
     "RequestTimeoutSeconds": 15
   },
+
   "Security": {
-    "_comment_auth": "AuthSecret will be populated during client installation or provisioning from Host",
+    "_comment_auth": "Authentication secret token (automatically provisioned by Host on registration if left empty)",
     "AuthSecret": "",
+
+    "_comment_client_id": "Unique client node identifier (automatically assigned by Host upon registration)",
     "ClientId": ""
   },
+
   "Slideshow": {
-    "_comment_timer": "LOCAL SLIDESHOW TIMER: To change interval in seconds, edit IntervalSeconds below (e.g., 5 for 5s, 10 for 10s, 60 for 1min)",
+    "_comment_timer": "Slideshow rotation interval in seconds (dynamically updated from Host manifest automatically)",
     "IntervalSeconds": 5,
+
+    "_comment_style": "Windows Wallpaper Style (10 = Fill, 6 = Fit, 2 = Stretch, 0 = Center)",
     "WallpaperStyle": 10,
+
+    "_comment_tile": "Tile wallpaper flag (0 = Do not tile, 1 = Tile)",
     "TileWallpaper": 0
   },
+
   "Paths": {
+    "_comment_cache": "Local image cache directory (automatically isolated to %LOCALAPPDATA% if run from network share)",
     "CacheDir": "../Cache",
+
+    "_comment_logs": "Client diagnostic log directory (automatically isolated to %LOCALAPPDATA% if run from network share)",
     "LogsDir": "../Logs"
   }
 }
