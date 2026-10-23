@@ -1,6 +1,9 @@
 @echo off
 setlocal EnableDelayedExpansion
 
+:: LAN Dynamic Wallpaper - Client Workstation Launcher
+:: STRICTLY NO ADMINISTRATOR PRIVILEGES REQUIRED - Runs as normal user
+
 set "DIR=%~dp0"
 set "CLIENT_SCRIPT=%DIR%Client\Client.ps1"
 
@@ -11,8 +14,11 @@ if not exist "%CLIENT_SCRIPT%" (
 )
 
 echo.
-echo  Starting LAN Dynamic Wallpaper CLIENT...
-echo  Auto-discovering Host on LAN and syncing wallpapers...
+echo  ====================================================================
+echo   LAN Dynamic Wallpaper - CLIENT WORKSTATION
+echo   Auto-discovering Host on LAN and syncing wallpapers...
+echo   (Running as standard user - No administrator privileges needed)
+echo  ====================================================================
 echo.
 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%CLIENT_SCRIPT%"

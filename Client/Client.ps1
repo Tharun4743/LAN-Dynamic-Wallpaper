@@ -563,17 +563,23 @@ function Sync-ClientCollection {
 function Refresh-LocalCollectionList {
     param([string]$CacheDir)
 
-    $list = New-Object System.Collections.Generic.List[string]
+    if ($null -eq $script:LocalCollection) {
+        $script:LocalCollection = New-Object System.Collections.Generic.List[string]
+    }
+    $script:LocalCollection.Clear()
+
     if (Test-Path -LiteralPath $CacheDir) {
-        $files = Get-ChildItem -LiteralPath $CacheDir -File |
+        $files = Get-ChildItem -LiteralPath $CacheDir -File -ErrorAction SilentlyContinue |
             Where-Object { $_.Extension.ToLowerInvariant() -in @(".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".tiff", ".tif") } |
             Sort-Object -Property Name
 
-        foreach ($f in $files) {
-            $list.Add($f.FullName)
+        if ($null -ne $files) {
+            foreach ($f in $files) {
+                [void]$script:LocalCollection.Add($f.FullName)
+            }
         }
     }
-    return $list
+    return , $script:LocalCollection
 }
 
 function Send-ClientHeartbeat {
@@ -690,7 +696,7 @@ function Start-ClientAgent {
     }
 
     # Initialize local collection from cache
-    $script:LocalCollection = Refresh-LocalCollectionList -CacheDir $cacheDir
+    Refresh-LocalCollectionList -CacheDir $cacheDir | Out-Null
     Write-ClientLog "Initial cache loaded: $($script:LocalCollection.Count) valid images ready." -Level INFO
 
     $currentAppliedWallpaper = ""
@@ -718,7 +724,7 @@ function Start-ClientAgent {
                 Save-ClientConfig -Path $ConfigPath -ConfigObj $cfg
             }
             Sync-ClientCollection -BaseUrl $baseUrl -AuthSecret $authSecret -CacheDir $cacheDir -ClientId $clientId | Out-Null
-            $script:LocalCollection = Refresh-LocalCollectionList -CacheDir $cacheDir
+            Refresh-LocalCollectionList -CacheDir $cacheDir | Out-Null
             if ($script:LocalCollection.Count -gt 0) {
                 $syncObj = Get-SynchronizedWallpaper -ImageFiles $script:LocalCollection -IntervalSeconds $slideshowInterval
                 if ($syncObj) { Set-DesktopWallpaper -ImagePath $syncObj.Path | Out-Null }
@@ -793,7 +799,7 @@ function Start-ClientAgent {
                     $syncOk = Sync-ClientCollection -BaseUrl $baseUrl -AuthSecret $authSecret -CacheDir $cacheDir -ClientId $clientId
                     if ($syncOk) {
                         $script:ConsecutiveFailures = 0
-                        $script:LocalCollection = Refresh-LocalCollectionList -CacheDir $cacheDir
+                        Refresh-LocalCollectionList -CacheDir $cacheDir | Out-Null
                     }
                     else {
                         $script:ConsecutiveFailures++
@@ -811,7 +817,7 @@ function Start-ClientAgent {
                                 Save-ClientConfig -Path $ConfigPath -ConfigObj $cfg
                                 $script:ConsecutiveFailures = 0
                                 Sync-ClientCollection -BaseUrl $baseUrl -AuthSecret $authSecret -CacheDir $cacheDir -ClientId $clientId | Out-Null
-                                $script:LocalCollection = Refresh-LocalCollectionList -CacheDir $cacheDir
+                                Refresh-LocalCollectionList -CacheDir $cacheDir | Out-Null
                             }
                         }
                     }

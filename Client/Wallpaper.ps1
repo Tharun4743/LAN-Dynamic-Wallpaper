@@ -78,11 +78,28 @@ function Set-DesktopWallpaper {
 
     $fullPath = [System.IO.Path]::GetFullPath($ImagePath)
 
-    # Validate image extension
     $ext = [System.IO.Path]::GetExtension($fullPath).ToLowerInvariant()
-    if ($ext -notin @(".jpg", ".jpeg", ".png", ".bmp")) {
-        Write-Error "Unsupported wallpaper image format: $ext"
-        return $false
+    $validNative = @(".jpg", ".jpeg", ".png", ".bmp")
+    if ($ext -notin $validNative) {
+        try {
+            [void][System.Reflection.Assembly]::LoadWithPartialName('System.Drawing')
+            $convertedPath = [System.IO.Path]::ChangeExtension($fullPath, ".converted.jpg")
+            if (-not (Test-Path -LiteralPath $convertedPath) -or ((Get-Item -LiteralPath $convertedPath).LastWriteTimeUtc -lt (Get-Item -LiteralPath $fullPath).LastWriteTimeUtc)) {
+                $img = [System.Drawing.Image]::FromFile($fullPath)
+                $bmp = New-Object System.Drawing.Bitmap($img.Width, $img.Height)
+                $gfx = [System.Drawing.Graphics]::FromImage($bmp)
+                $gfx.DrawImage($img, 0, 0, $img.Width, $img.Height)
+                $gfx.Dispose()
+                $img.Dispose()
+                $bmp.Save($convertedPath, [System.Drawing.Imaging.ImageFormat]::Jpeg)
+                $bmp.Dispose()
+            }
+            $fullPath = $convertedPath
+        }
+        catch {
+            Write-Error "Unsupported wallpaper image format: $ext ($($_.Exception.Message))"
+            return $false
+        }
     }
 
     # Ensure desktop registry is configured to Fill

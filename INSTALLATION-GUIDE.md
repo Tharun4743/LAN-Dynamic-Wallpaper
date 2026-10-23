@@ -1,169 +1,140 @@
-# 📖 LAN Dynamic Wallpaper: Installation & Deployment Guide
+# 📖 LAN Dynamic Wallpaper: Complete Installation & Deployment Guide
 
-This guide details the complete deployment lifecycle for the LAN Dynamic Wallpaper Slideshow System across 1 Host Administrator PC and 30–100 Client Workstations on a local wired Ethernet LAN.
-
----
-
-## 📋 System Prerequisites
-
-### Host PC (The Central Administrator Computer)
-- **Operating System**: Windows 11 (all versions) or Windows 10 (Version 1809 or newer, Pro / Enterprise / Education / Home).
-- **PowerShell**: Windows PowerShell 5.1 (built into Windows) or PowerShell 7.x.
-- **Permissions**: Administrator privileges required to bind the HTTP service on port `8765`, configure Windows Firewall rules, and reserve the URL ACL.
-- **Network**: Static IPv4 address or DHCP reservation recommended on the wired Ethernet adapter.
-- **Port Availability**:
-  - `TCP 8765`: HTTP API and image streaming endpoint.
-  - `UDP 8766`: Automated discovery responder.
-
-### Client PCs (All 30–100 Workstations)
-- **Operating System**: Windows 11 or Windows 10.
-- **PowerShell**: Windows PowerShell 5.1 (built into Windows).
-- **Permissions**: Administrator rights are required only once during initial setup (`Start-Client.bat`) to register automatic background startup. Normal ongoing wallpaper rotation runs as a **standard user** in the interactive desktop session.
-- **Network**: Wired Ethernet or Wi-Fi connection on the same subnet as the Host (or routable LAN with static IP configuration).
+This guide details the complete deployment lifecycle for the LAN Dynamic Wallpaper Slideshow System across 1 Host Administrator PC and 30–100+ Client Workstations on a local wired or wireless LAN.
 
 ---
 
 ## ⚡ The Two-Launcher Experience
 
-The entire system is controlled by **exactly two user-facing batch files**:
+The entire system is controlled by **exactly two user-friendly batch files**:
 
-| Launcher | Where to Run | Permissions | Primary Action |
+| Launcher | Where to Run | Administrator Needed? | Primary Action |
 | :--- | :--- | :--- | :--- |
-| **`Start-Host.bat`** | On the Host Administrator PC | **Run as administrator** | Configures firewall, reserves URL ACL, opens `Wallpapers/` folder, starts HTTP/UDP service, and begins host desktop slideshow. |
-| **`Start-Client.bat`** | On each Client Workstation | **Run as administrator** (initial setup) | Discovers Host on LAN, registers client node, downloads wallpapers into local cache, configures auto-start at user logon, and begins desktop rotation. |
+| **`1-Start-Host.bat`** | On the Central Lab Server / Host PC | **Yes (Auto-prompts UAC)** | Binds HTTP on port `8765` and UDP on `8766` for LAN streaming, opens `Wallpapers/` folder, starts central sync service. |
+| **`2-Start-Client.bat`** | On each Student / Client PC | ❌ **STRICTLY NO (Runs as Normal User)** | Auto-discovers Host on LAN, downloads wallpapers to local cache, sets interactive desktop wallpaper, syncs dynamically. |
+
+> [!IMPORTANT]
+> **Zero Administrator Rights on Client Workstations:**
+> Students, lab users, or standard Windows accounts do **NOT** need admin rights or UAC passwords to use `2-Start-Client.bat`. Changing Windows desktop wallpaper (`SystemParametersInfoW`) and configuring user logon startup (`HKCU:\Software\Microsoft\Windows\CurrentVersion\Run`) operate entirely within the logged-in user's interactive desktop session (`HKEY_CURRENT_USER`).
+
+---
+
+## 📋 System Prerequisites
+
+### Host PC (The Central Management Computer)
+- **Operating System**: Windows 11 or Windows 10 (Pro, Enterprise, Education, or Home).
+- **PowerShell**: Windows PowerShell 5.1 (built into Windows) or PowerShell 7.x.
+- **Permissions**: Administrator rights (to bind port `8765` on Windows HTTP.SYS for LAN network access). `1-Start-Host.bat` automatically handles elevation.
+- **Network**: Connected to the lab LAN (wired Ethernet recommended, or Wi-Fi).
+
+### Client PCs (Student / Lab Workstations)
+- **Operating System**: Windows 11 or Windows 10.
+- **PowerShell**: Windows PowerShell 5.1 (standard on all Windows machines).
+- **Permissions**: **Standard Normal User (No Admin Rights Needed)**.
+- **Network**: Connected to the same LAN or Wi-Fi network as the Host.
 
 ---
 
 ## 🖥️ Step-by-Step Installation
 
-### Part 1: Host PC Setup
+### Part 1: Host PC Setup (Single Central PC)
 
-1. Copy or clone the `LAN-Dynamic-Wallpaper` repository to the designated Host PC.
-2. Right-click **`Start-Host.bat`** and select **Run as administrator**.
-3. If prompted by Windows User Account Control (UAC), click **Yes**.
-4. The host manager will automatically:
-   - Check and validate the Windows PowerShell environment.
-   - Idempotently configure Windows Defender Firewall rules for inbound TCP `8765` and UDP `8766` on `Private,Domain` network profiles.
-   - Idempotently reserve the HTTP.sys URL ACL (`http://+:8765/`).
-   - If `HostConfig.json` lacks secrets, generate fresh 256-bit cryptographic keys (`AdminSecret` and `AuthSecret`) and secure the configuration with restrictive Windows ACLs.
-   - Automatically open the **`Wallpapers/`** folder in Windows Explorer on your screen.
-5. **Drop your photo files** into this `Wallpapers/` folder:
+1. **Download & Extract** the `LAN-Dynamic-Wallpaper` folder on the designated Host PC.
+2. Double-click **`1-Start-Host.bat`**.
+   - If prompted by Windows User Account Control (UAC), click **Yes**.
+   - The launcher will start the central server and display the Host IP address (e.g., `192.168.31.20` or `172.16.20.169`).
+3. The server will automatically open the **`Wallpapers/`** folder in Windows Explorer.
+4. **Drop your photos or images** into the `Wallpapers/` folder:
    - Supported formats: **`.jpg`**, **`.jpeg`**, **`.png`**, **`.bmp`**, **`.gif`**, **`.webp`**, **`.tiff`**.
-6. The host server immediately synchronizes the images, applies the initial wallpaper to the Host PC desktop, and begins rotating through the collection every **5 seconds**.
-7. Keep the `Start-Host.bat` console window open (you may minimize it).
-
-### Part 2: Client Workstation Deployment (30–100 PCs)
-
-1. Copy the project folder to the client computer (via USB flash drive or local network share).
-2. Right-click **`Start-Client.bat`** and select **Run as administrator** for initial setup.
-3. The client launcher will automatically:
-   - Validate PowerShell 5.1+ and required scripts.
-   - Broadcast a UDP discovery probe on port `8766` (with fast subnet sweep fallback).
-   - Locate the Host PC and query its health endpoint (`/api/v1/health`).
-   - Register the client node with the Host (`POST /api/v1/auth/register`), receiving an assigned Client ID and secure client token.
-   - Download the wallpaper collection manifest and sync images into the local `Cache/` directory.
-   - Verify each downloaded image's SHA-256 hash before applying.
-   - Immediately update the client workstation's visible desktop wallpaper.
-   - Register silent background startup in the Windows user registry (`HKCU:\Software\Microsoft\Windows\CurrentVersion\Run`).
-4. **Daily Ongoing Operation**:
-   - Users do **NOT** need to run `Start-Client.bat` every day.
-   - When a student or employee logs into Windows, the wallpaper agent starts automatically in their interactive user desktop session and maintains synchronized rotation in the background.
+5. **Done!** The Host is now actively broadcasting and serving wallpapers over LAN. Keep the console window open (you can minimize it).
 
 ---
 
-## 🖼️ Dynamic Wallpaper Synchronization Lifecycle
+### Part 2: Client Workstation Deployment (Student / Workstation PCs)
 
-Once the Host and Clients are running, managing content requires zero command typing:
+You can connect client workstations using either of the following two quick methods:
 
-- **Adding a Photo**:
-  Drop any supported image file into the `Wallpapers/` folder on the Host PC.
-  Within 10 seconds, all connected client computers will automatically download the new file and add it into their active rotation cycle.
-- **Replacing a Photo**:
-  Overwrite an existing file in `Wallpapers/` with an updated image using the same filename.
-  The Host detects the changed SHA-256 hash, increments the collection version, and client workstations update their cached copy seamlessly.
-- **Deleting a Photo**:
-  Delete the file from `Wallpapers/` on the Host PC.
-  The Host updates the manifest. On their next polling cycle, client workstations prune the deleted file from their local cache and continue rotating through remaining wallpapers without interruption.
+#### Method A: Double-Click the Batch File (Recommended)
+1. Copy the project folder to the client workstation (or open it from a shared USB/LAN folder).
+2. Double-click **`2-Start-Client.bat`** as a normal standard user.
+   - **No "Run as administrator" is required!**
+   - The client immediately discovers the Host on the LAN via UDP probe on port `8766`.
+   - It downloads all wallpapers into local cache and applies the active wallpaper immediately to the screen.
 
----
-
-## 🔧 Enterprise Deployment via Network Share
-
-For large-scale computer labs or school deployments:
-
-1. Place the project on a central read-only LAN file share:
-   `\\FileServer\Shares\LAN-Dynamic-Wallpaper`
-2. Create an Active Directory Group Policy Object (GPO) or computer startup script to run initial setup on client machines:
-   ```cmd
-   cmd.exe /c "\\FileServer\Shares\LAN-Dynamic-Wallpaper\Start-Client.bat"
-   ```
-3. Alternatively, deploy a logon script executing the client agent directly:
-   ```powershell
-   powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "\\FileServer\Shares\LAN-Dynamic-Wallpaper\Client\Client.ps1"
-   ```
-
----
-
-## 🧪 Automated Testing & Verification
-
-To verify all system components without adding extra batch files, execute the master test suite using PowerShell:
-
+#### Method B: 1-Click Remote PowerShell Setup (No Folder Copy Needed)
+On any client PC, simply open PowerShell and run this one-line command (replace with your Host IP):
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File Tests\Run-All-Tests.ps1
+irm http://<HOST-IP>:8765/setup | iex
 ```
-
-The automated test harness executes 5 comprehensive integration test suites:
-1. **`Test-Publisher.ps1`**: Validates file locks, magic-byte inspection, SHA-256 recalculation, and atomic manifest publishing.
-2. **`Test-Client.ps1`**: Validates Win32 P/Invoke desktop wallpaper rotation, deterministic cycling, cache retention, and mutex duplicate prevention.
-3. **`Test-Host.ps1`**: Validates HTTP listener routing, client registration, authenticated manifest delivery, binary asset streaming, and RBAC authorization guards.
-4. **`Test-Security.ps1`**: Validates path traversal attack rejection (`..`, `%2f`, `%5c`), authentication bypass protection, and zero information leakage.
-5. **`Test-100Clients.ps1`**: Executes a 100-client concurrent load simulation (400 HTTP requests in ~1 second) to guarantee multi-client fleet stability.
+*Example:* `irm http://192.168.31.20:8765/setup | iex`
+- This automatically downloads the client script, caches all wallpapers, applies the desktop wallpaper, and starts live synchronization.
 
 ---
 
-## 🚨 Troubleshooting & Actionable Error Recovery
+## 🔄 Dynamic Real-Time Wallpaper Updates (Zero Server Restarts)
 
-### Error: Host Fails to Bind Port 8765
-- **Cause**: Port `8765` is in use by another application or the launcher was run without administrator privileges.
-- **Fix**: Right-click `Start-Host.bat` and select **Run as administrator**. To inspect what process is using the port, run:
+The system includes continuous real-time directory synchronization:
+
+- **Add an Image**:
+  Drop any new `.jpg`, `.png`, or `.webp` file into the `Wallpapers/` folder on the Host PC.
+  Within ~2 seconds, all connected client PCs detect the update, download the new image, and include it in the rotation cycle without stopping or restarting the server.
+- **Replace an Image**:
+  Overwrite an existing image in `Wallpapers/` with an updated file.
+  The Host detects the changed SHA-256 hash and clients update their local copy seamlessly.
+- **Delete an Image**:
+  Delete an image from `Wallpapers/`.
+  The Host updates the collection manifest and clients cleanly prune the deleted file from their cache.
+
+---
+
+## ⏱️ Exact-Second Synchronized Rotation
+
+All computers in the lab rotate their wallpaper at the **exact same second**:
+- The slideshow uses UTC Unix epoch alignment:
+  $$\text{Index} = \lfloor \text{EpochSeconds} / \text{IntervalSeconds} \rfloor \pmod N$$
+- Every PC in the lab calculates the exact same index simultaneously.
+- Default rotation interval: **5 seconds** (configurable in `Host/HostConfig.json`).
+
+---
+
+## 🛡️ Why Wallpaper Changes Without Admin on Client Side
+
+Some administrators wonder whether standard users can change desktop wallpaper without UAC approval. Here is the technical breakdown:
+
+1. **Win32 User32 API**: `SystemParametersInfoW(SPI_SETDESKWALLPAPER, 0, path, SPIF_UPDATEINIFILE | SPIF_SENDCHANGE)` operates directly on the current user's desktop session. It does not touch system-wide protected files or elevated kernel drivers.
+2. **Current User Registry**: Wallpaper settings are stored in `HKCU:\Control Panel\Desktop` (`HKEY_CURRENT_USER`). Standard Windows users have full read and write access to their own user registry hive.
+3. **Logon Auto-Start**: The startup registry key `HKCU:\Software\Microsoft\Windows\CurrentVersion\Run` is also located in `HKEY_CURRENT_USER`. Standard users can register startup programs for their own account without administrative privileges.
+4. **Local Cache**: Downloaded wallpapers are stored in the client application's local directory (`Client\Cache\`), where the user has normal write permissions.
+
+---
+
+## 🚨 Troubleshooting & FAQ
+
+### Issue: Client Shows "UDP broadcast silent / Host not found"
+- **Solution 1**: Verify the Host PC is running `1-Start-Host.bat` and connected to the same network.
+- **Solution 2**: Specify the Host IP manually by editing `Client\ClientConfig.json` or running:
   ```powershell
-  Get-NetTCPConnection -LocalPort 8765
+  powershell -ExecutionPolicy Bypass -File Client\Client.ps1 -HostOverride "192.168.31.20"
   ```
 
-### Error: Client Reports "UDP Discovery Silent / Host Not Found"
-- **Cause**: Network switches or VLAN routers are dropping UDP broadcast traffic between subnets.
-- **Fix**: Open `Client\ClientConfig.json` in Notepad on the client PC. Enter the Host PC's IP address directly:
-  ```json
-  "HostAddress": "192.168.1.50"
-  ```
-  Save the file and run `Start-Client.bat` again.
+### Issue: Host Fails to Bind Port 8765
+- **Cause**: Windows HTTP.SYS requires administrator rights to open a server port accessible to the LAN.
+- **Solution**: Make sure you launch `1-Start-Host.bat` (which automatically prompts for UAC elevation) on the Host PC.
 
-### Error: Desktop Wallpaper Does Not Update
-- **Cause**: The process is running in a non-interactive session or Windows personalization is locked to Windows Spotlight.
-- **Fix**: Ensure the agent is running under the interactive logged-in user. In Windows **Settings** -> **Personalization** -> **Background**, set the background mode to **Picture**.
+### Issue: Wallpaper Does Not Display on Client
+- **Solution**: Open Windows **Settings** -> **Personalization** -> **Background** and ensure the background mode is set to **Picture** (not Windows Spotlight).
 
 ---
 
-## 🗑️ Safe Uninstallation
+## 🗑️ Clean Uninstallation
 
-### To Remove Client Workstation Setup:
-1. Close the client window or terminate any running client process:
-   ```powershell
-   Get-Process -Name "powershell" -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -like "*Client Workstation*" } | Stop-Process -Force
-   ```
-2. Remove the Windows logon auto-start entry:
+### To Remove Client Workstation:
+1. Close the client console window.
+2. To remove the automatic logon startup entry, run in PowerShell:
    ```powershell
    Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "LAN-Dynamic-Wallpaper-Client" -ErrorAction SilentlyContinue
    ```
-3. Delete the local `Cache/` folder and project files.
+3. Delete the `LAN-Dynamic-Wallpaper` folder.
 
-### To Remove Host Server Setup:
-1. Close the `Start-Host.bat` console window.
-2. Delete the Windows Firewall rules:
-   ```powershell
-   Remove-NetFirewallRule -DisplayName "LAN-Dynamic-Wallpaper-Host-*" -ErrorAction SilentlyContinue
-   ```
-3. Remove the HTTP.sys URL ACL reservation:
-   ```cmd
-   netsh http delete urlacl url=http://+:8765/
-   ```
+### To Stop Host Server:
+1. Close the `1-Start-Host.bat` console window.

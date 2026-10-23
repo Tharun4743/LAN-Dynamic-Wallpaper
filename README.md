@@ -15,9 +15,9 @@ A high-performance, enterprise-grade, **pure PowerShell-only** LAN Dynamic Wallp
 
 Setting up and running the dynamic wallpaper slideshow across your computer lab, school, or office network takes **less than 1 minute**. No installation packages, no third-party runtimes, and no manual command typing needed.
 
-### 🖥️ Step 1: On the Host PC (The Administrator Computer)
+### 🖥️ Step 1: On the Host PC (The Central Computer)
 
-1. Double-click **`Start-Host.bat`** (or **`1-Start-Host.bat`**).
+1. Double-click **`1-Start-Host.bat`**.
 2. If prompted by Windows User Account Control (UAC), click **Yes**.
 3. The launcher automatically:
    - Configures the Windows Defender Firewall rules for TCP `8765` and UDP `8766`.
@@ -27,7 +27,7 @@ Setting up and running the dynamic wallpaper slideshow across your computer lab,
 4. **Drop your photos & videos** into this `Wallpapers/` folder:
    - Supported formats: **JPG, JPEG, PNG, BMP, GIF, WEBP, TIFF, MP4, MOV, WMV**.
    - **Live Dynamic Updates**: You can drop, replace, or delete photos **without stopping the server**! Changes are detected within 2 seconds.
-5. **Keep `Start-Host.bat` open** (you can minimize the window).
+5. **Keep `1-Start-Host.bat` open** (you can minimize the window).
 
 ---
 
@@ -43,11 +43,11 @@ irm http://<HOST_IP>:8765/setup | iex
 *(Example: `irm http://192.168.31.20:8765/setup | iex`)*
 - The script automatically downloads the client files directly from the Host and launches the slideshow!
 
-#### 📁 Option B (Using the Project Folder):
+#### 📁 Option B (Using the Batch File - No Admin Needed):
 1. Copy the project folder to the client computer (via USB or network share).
-2. Double-click **`Start-Client.bat`** (or **`2-Start-Client.bat`**).
-   - If auto-discovery finds the Host, it connects automatically!
-   - You can also pass the Host IP as an argument: `Start-Client.bat 192.168.31.20`
+2. Double-click **`2-Start-Client.bat`** as a normal user (**No Administrator rights required!**).
+   - Auto-discovery finds the Host on the LAN and syncs immediately!
+   - You can also pass the Host IP as an argument: `2-Start-Client.bat 192.168.31.20`
 
 ---
 
@@ -135,8 +135,8 @@ All client workstations in the lab calculate transitions against UTC epoch time:
 
 ```
 LAN-Dynamic-Wallpaper/
-├── Start-Host.bat               # 🖥️ 1-CLICK HOST LAUNCHER (Run as administrator on Host PC)
-├── Start-Client.bat             # 💻 1-CLICK CLIENT LAUNCHER (Run as administrator for initial setup on Client PCs)
+├── 1-Start-Host.bat             # 🖥️ 1-CLICK HOST LAUNCHER (Run on central Host PC)
+├── 2-Start-Client.bat           # 💻 1-CLICK CLIENT LAUNCHER (Normal User - No Admin Needed!)
 ├── Host/
 │   ├── Host.ps1                 # Multi-threaded HTTP listener & UDP discovery daemon
 │   ├── Publisher.ps1            # Format converter, magic-byte validator, SHA-256 hasher, manifest generator
@@ -170,8 +170,8 @@ LAN-Dynamic-Wallpaper/
 
 - **Operating System**: Windows 11 (all editions) or Windows 10 (Version 1809 or newer, 64-bit/32-bit).
 - **PowerShell**: Windows PowerShell 5.1 (built into Windows) or PowerShell 7.x.
-- **Host Permissions**: Administrator elevation required on the Host PC to bind port `8765` and register scoped Windows Firewall rules.
-- **Client Permissions**: Administrator elevation is required only during initial setup (`Start-Client.bat`) to configure auto-start. Normal ongoing wallpaper rotation runs as a **standard user** in the interactive desktop session.
+- **Host Permissions**: Administrator elevation required on the Host PC to bind port `8765` for LAN HTTP streaming. `1-Start-Host.bat` handles this automatically.
+- **Client Permissions**: **Zero Administrator Rights Needed**. Any student or standard Windows user can run `2-Start-Client.bat`. Changing desktop wallpaper and configuring user startup operate entirely within the logged-in user's interactive session (`HKEY_CURRENT_USER`).
 - **Network**: Wired Ethernet LAN or stable private Wi-Fi network on the same IP subnet.
 - **Supported Formats**: `.jpg`, `.jpeg`, `.png`, `.bmp`, `.gif`, `.webp`, `.tiff`. Video files (`.mp4`, `.mov`) are supported for snapshot wallpaper extraction when the Windows Media Foundation codecs are installed.
 
