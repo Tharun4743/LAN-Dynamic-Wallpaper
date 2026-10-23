@@ -16,6 +16,7 @@ id_rsa
 # Application runtime state and generated stores
 Host/clients.json
 Client/Cache/
+Client/_HOSTINFO.txt
 Cache/
 Logs/
 *.log

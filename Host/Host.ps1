@@ -477,22 +477,19 @@ function Start-HostServer {
     Write-Host "  [TIMER]    Slideshow : $defaultInterval SECONDS (Exact-second sync on all PCs)" -ForegroundColor Yellow
     Write-Host "  [CAPACITY] Max Fleet : Up to 10,000 photos (100 MB per file limit)" -ForegroundColor White
     Write-Host "  [NETWORK]  Host IPv4 : $hostIp (HTTP: $port | UDP Discovery: $discPort)" -ForegroundColor Cyan
-    # Auto-configure Windows Network Folder Share for Everyone (Read-Only)
-    try {
-        $rootProjectDir = [System.IO.Path]::GetFullPath((Join-Path $scriptDir ".."))
-        $existingShare = Get-SmbShare -Name "LAN-Dynamic-Wallpaper" -ErrorAction SilentlyContinue
-        if ($null -eq $existingShare) {
-            New-SmbShare -Name "LAN-Dynamic-Wallpaper" -Path $rootProjectDir -ReadAccess "Everyone" -FullAccess "Administrators" -ErrorAction SilentlyContinue | Out-Null
-        }
-    } catch {}
+    # NOTE: Temporary client-package sharing is now managed exclusively by
+    # 1-Host-Network-Start.bat which creates a share named "LAN-WP-ClientPkg"
+    # pointing ONLY at the Client\ subfolder (not the project root).
+    # The wallpaper HTTP service does not require an SMB share to function.
+    # This block intentionally does not create any SMB share.
 
     Write-Host "------------------------------------------------------------------------------" -ForegroundColor DarkGray
     Write-Host "  [EASY 1-CLICK METHODS FOR YOUR 80 CLIENT COMPUTERS]:" -ForegroundColor White
     Write-Host "  Method 1 (Fastest): Open PowerShell on client PC and run:" -ForegroundColor Cyan
     Write-Host "            irm http://$hostIp`:$port/setup | iex" -ForegroundColor Yellow
     Write-Host "  Method 2 (Network Share): Press Win + R on client PC, enter:" -ForegroundColor Cyan
-    Write-Host "            \\$hostIp\LAN-Dynamic-Wallpaper" -ForegroundColor Yellow
-    Write-Host "            and double-click '2-Start-Client.bat'" -ForegroundColor White
+    Write-Host "            \\$hostIp\LAN-WP-ClientPkg" -ForegroundColor Yellow
+    Write-Host "            and double-click '3-Client-Download-Start.bat'" -ForegroundColor White
     Write-Host "  Method 3 (Web Browser): In Chrome or Edge on client PC, open:" -ForegroundColor Cyan
     Write-Host "            http://$hostIp`:$port" -ForegroundColor Yellow
     Write-Host "==============================================================================" -ForegroundColor Green
@@ -715,7 +712,7 @@ function Start-HostServer {
         </div>
 
         <div style="display: flex; gap: 12px; justify-content: center;">
-            <a href="/2-Start-Client.bat" class="btn">⬇️ Download 2-Start-Client.bat</a>
+            <a href="/3-Client-Download-Start.bat" class="btn">⬇️ Download 3-Client-Download-Start.bat</a>
         </div>
 
         <div class="options">
@@ -725,7 +722,7 @@ function Start-HostServer {
             </div>
             <div class="option-box">
                 <h3>Option 2: Batch File</h3>
-                <p>Download and double-click <code>2-Start-Client.bat</code>. It starts rotating wallpapers instantly.</p>
+                <p>Download and double-click <code>3-Client-Download-Start.bat</code>. It starts rotating wallpapers instantly.</p>
             </div>
         </div>
     </div>
@@ -751,18 +748,16 @@ function Start-HostServer {
                 }
 
                 # --------------------------------------------------------------
-                # ROUTE -0b: GET /2-Start-Client.bat (Direct Batch Download with Dynamic Host IP)
+                # ROUTE -0b: GET /3-Client-Download-Start.bat (Direct Batch Download)
                 # --------------------------------------------------------------
-                if ($method -eq "GET" -and $path -eq "/2-Start-Client.bat") {
-                    $batPath = [System.IO.Path]::GetFullPath((Join-Path $scriptDir "../2-Start-Client.bat"))
+                if ($method -eq "GET" -and ($path -eq "/3-Client-Download-Start.bat" -or $path -eq "/2-Start-Client.bat")) {
+                    $batPath = [System.IO.Path]::GetFullPath((Join-Path $scriptDir "../3-Client-Download-Start.bat"))
                     if (Test-Path -LiteralPath $batPath) {
                         $batContent = [System.IO.File]::ReadAllText($batPath, [System.Text.Encoding]::ASCII)
-                        # Dynamically inject current Host IP so clients downloading via browser connect immediately
-                        $batContent = $batContent.Replace('set "SERVER_OVERRIDE="', "set `"SERVER_OVERRIDE=$hostIp`"")
                         $bytes = [System.Text.Encoding]::ASCII.GetBytes($batContent)
                         $response.StatusCode = 200
                         $response.ContentType = "application/x-bat"
-                        $response.Headers.Add("Content-Disposition", "attachment; filename=2-Start-Client.bat")
+                        $response.Headers.Add("Content-Disposition", "attachment; filename=3-Client-Download-Start.bat")
                         $response.ContentLength64 = $bytes.Length
                         $response.OutputStream.Write($bytes, 0, $bytes.Length)
                         $response.OutputStream.Close()

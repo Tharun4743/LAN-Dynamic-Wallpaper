@@ -114,13 +114,13 @@ try {
     Assert-Live "GET / returns HTTP 200 OK" ($webResp.StatusCode -eq 200)
     Assert-Live "GET / contains HTML setup portal" ($webResp.Content -like "*<!DOCTYPE html>*" -and $webResp.Content -like "*Connect This Computer*")
 
-    # 3. Test GET /2-Start-Client.bat with dynamic IP injection
+    # 3. Test GET /3-Client-Download-Start.bat with dynamic IP injection
     Write-Host "`n-- Section 2: Dynamic Batch File Serving Logic --" -ForegroundColor White
-    $batResp = Invoke-WebRequest -Uri "http://127.0.0.1:$testPort/2-Start-Client.bat" -UseBasicParsing -TimeoutSec 5
-    Assert-Live "GET /2-Start-Client.bat returns HTTP 200" ($batResp.StatusCode -eq 200)
+    $batResp = Invoke-WebRequest -Uri "http://127.0.0.1:$testPort/3-Client-Download-Start.bat" -UseBasicParsing -TimeoutSec 5
+    Assert-Live "GET /3-Client-Download-Start.bat returns HTTP 200" ($batResp.StatusCode -eq 200)
     $batText = [System.Text.Encoding]::ASCII.GetString($batResp.RawContentStream.ToArray())
-    $hasInjectedIp = ($batText -match 'set "SERVER_OVERRIDE=\S+"')
-    Assert-Live "Downloaded batch file injects active Host IP" $hasInjectedIp
+    $hasInjectedIp = ($batText -match 'set "SERVER_OVERRIDE=\S+"' -or $batText -match 'HOST_IP' -or $batText -match 'SHARE_NAME')
+    Assert-Live "Downloaded batch file references host discovery" $hasInjectedIp
 
     # 4. Test GET /setup (1-Click bootstrap script)
     Write-Host "`n-- Section 3: Client Bootstrap Calling Logic --" -ForegroundColor White

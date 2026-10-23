@@ -28,7 +28,8 @@ $suites = @(
     @{ Name = "Host Server (Routes, Tokens & RBAC)";         File = "Test-Host.ps1" },
     @{ Name = "Security Penetration (Traversal & Bypass)";   File = "Test-Security.ps1" },
     @{ Name = "Live Integration & Dynamic Reload Calls";     File = "Test-LiveIntegration.ps1" },
-    @{ Name = "100-Client Concurrency Load Benchmark";       File = "Test-100Clients.ps1" }
+    @{ Name = "100-Client Concurrency Load Benchmark";       File = "Test-100Clients.ps1" },
+    @{ Name = "Service Separation & Stop-All Verification";  File = "Test-Sharing.ps1" }
 )
 
 $summary = @()

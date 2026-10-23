@@ -5,7 +5,7 @@
 [![Architecture](https://img.shields.io/badge/Architecture-Host%20%2F%20Client%20RBAC-107C41.svg)]()
 [![Dependencies](https://img.shields.io/badge/Dependencies-Zero%20(Built--in%20Only)-success.svg)]()
 [![Fleet Capacity](https://img.shields.io/badge/Fleet%20Capacity-30--100%20Client%20Nodes-blueviolet.svg)]()
-[![Test Verdict](https://img.shields.io/badge/Automated%20Tests-100%25%20PASS%20(5%2F5%20Suites)-brightgreen.svg)]()
+[![Test Verdict](https://img.shields.io/badge/Automated%20Tests-100%25%20PASS%20(7%2F7%20Suites)-brightgreen.svg)]()
 
 An enterprise-grade, high-performance, **pure Windows PowerShell** LAN Dynamic Wallpaper Slideshow System built for 30–100+ Windows 11 and Windows 10 computers in labs, classrooms, and corporate offices.
 
@@ -13,45 +13,78 @@ The central Host manages all client wallpapers dynamically without server restar
 
 ---
 
-## ⚡ The Two-Launcher Experience (Strictly 2 Batch Files)
+## ⚡ The Five-Launcher Workflow
 
-The entire system is controlled by **exactly two batch files**:
+The system provides **five clean batch scripts** managing two independent services:
 
-| Launcher | Where to Run | Administrator Needed? | Primary Action |
-| :--- | :--- | :--- | :--- |
-| **`1-Start-Host.bat`** | On the Central Lab Server / Host PC | **Yes (Auto-prompts UAC)** | Configures firewall, starts discovery services, shares folder password-free across LAN, opens `Wallpapers/` folder, starts central sync server. |
-| **`2-Start-Client.bat`** | On each Student / Client PC | ❌ **STRICTLY NO (Runs as Normal User)** | Discovers Host on LAN, caches wallpapers locally, sets interactive Windows desktop wallpaper, and syncs dynamically. |
+| # | Launcher | Where to Run | Administrator Required? | Primary Action |
+| :- | :--- | :--- | :--- | :--- |
+| **1** | **`1-Host-Network-Start.bat`** | Host PC (Teacher/Server) | ✅ **Yes (Auto-prompts UAC)** | Creates read-only SMB share `LAN-WP-ClientPkg` (exposing only `Client\` folder). Auto-writes host IP for client discovery. **Stays open until you stop it manually.** |
+| **2** | **`2-Host-Wallpaper-Start.bat`** | Host PC (Teacher/Server) | ✅ **Yes (Auto-prompts UAC)** | Starts central HTTP wallpaper delivery server (port 8765) and UDP discovery beacon (port 8766). Drop wallpapers into `Wallpapers/` anytime. |
+| **3** | **`3-Client-Download-Start.bat`** | Each Client PC (Student) | ❌ **STRICTLY NO (Normal User)** | **Zero manual configuration.** Auto-discovers host, downloads client files to `%USERPROFILE%\Downloads\LAN-Dynamic-Wallpaper`, and starts wallpaper agent. |
+| **4** | **`4-Host-Network-Stop.bat`** | Host PC (Teacher/Server) | ✅ **Yes (Auto-prompts UAC)** | **Stops the network SMB share only.** Does NOT affect the wallpaper service or any running client wallpapers. |
+| **5** | **`5-Stop-All.bat`** | Host PC (Teacher/Server) | ✅ **Yes (Auto-prompts UAC)** | One-click total shutdown. Stops network share, terminates wallpaper service (port 8765), and removes firewall rules. |
+
+> [!IMPORTANT]
+> **Independent Services:** Stopping network sharing via `4-Host-Network-Stop.bat` closes the distribution share after all students have downloaded the client, but **does NOT affect the wallpaper service**. Connected clients continue receiving new photos smoothly over HTTP.
 
 ---
 
-## 🚀 3 Easy Ways to Connect Client Workstations
+## ⚡ Quick Reference Run Order
 
-You have **three ultra-simple methods** to connect all 80+ client PCs in your lab:
+### 🖥️ On the Host PC (Teacher / Lab Server)
+**Step 1 — Open the Share:**
+- Double-click **`1-Host-Network-Start.bat`** *(Click Yes at UAC)*.
+- *(Opens client package share so student PCs can download the files).*
 
-### 🌟 Way 1: Zero-Typing via File Explorer "Network" (Fastest for Students)
-1. On the client computer, press `Win + E` to open **File Explorer**.
+**Step 2 — Start Wallpaper Service:**
+- Double-click **`2-Host-Wallpaper-Start.bat`** *(Click Yes at UAC)*.
+- Drop your photos into the **`Wallpapers/`** folder.
+- *(Keep this window open during your lab session).*
+
+### 💻 On Each Client PC (Students)
+**Step 3 — Run the Client:**
+- Open **File Explorer** ➔ click **Network** ➔ open **Host PC** ➔ open **`LAN-WP-ClientPkg`**
+- Double-click **`3-Client-Download-Start.bat`** *(No Admin Needed!)*
+
+### 🛑 When Done (Host PC)
+**Step 4 — Stop Sharing (Optional):**
+- Run **`4-Host-Network-Stop.bat`** *(Closes share; wallpapers keep running)*.
+
+**Step 5 — Stop Everything:**
+- Run **`5-Stop-All.bat`** *(Stops all services and cleans up)*.
+
+---
+
+## 🚀 100% Automatic Client Setup (Zero Manual IP Editing)
+
+Students and lab users **never** have to edit batch files or configure IP addresses manually:
+
+### 🌟 Way 1: Open File Explorer & Network (Recommended)
+1. On student computer, press **`Win + E`** (File Explorer).
 2. Click **Network** in the left sidebar.
-3. Click your **Host Computer Name** (e.g. `\\HOST-PC`).
-4. Double-click **`2-Start-Client.bat`**.
-   - **No administrator rights needed.**
-   - **No password prompt is asked.**
-   - The client immediately downloads wallpapers to its local cache and starts rotating!
+3. Double-click the **Host PC Name** (or press `Win + R` and enter `\\<HOST_IP>\LAN-WP-ClientPkg`).
+4. Open the shared folder: **`LAN-WP-ClientPkg`**.
+5. Double-click **`3-Client-Download-Start.bat`** directly from the share.
+   - It detects the share path automatically, copies files to `%USERPROFILE%\Downloads\LAN-Dynamic-Wallpaper`, and launches the agent!
+   - **Zero admin rights required. No password asked.**
 
-### ⚡ Way 2: 1-Click Remote PowerShell Setup (Zero File Copy)
-On any client PC, press `Win + R`, type `powershell`, and run the 1-click command shown on your Host screen:
+### ⚡ Way 2: Distribute `3-Client-Download-Start.bat` via USB or Shared Drive
+1. Copy `3-Client-Download-Start.bat` to a USB drive or public folder.
+2. Students run it from their computer.
+3. The launcher uses a 5-tier auto-discovery engine:
+   - **Tier 1 (UNC Path):** Detects if launched directly from the network share.
+   - **Tier 2 (UDP Beacon):** Probes port 8766; host wallpaper server responds with IP in < 1 second.
+   - **Tier 3 (ARP / LAN Neighbor):** Checks active subnet nodes for `LAN-WP-ClientPkg`.
+   - **Tier 4 (Workgroup Scan):** Scans visible computers for the client package share.
+   - **Tier 5 (Interactive Prompt):** If automatic broadcast is blocked by complex VLAN switches, prompts the user to enter the host IP.
+
+### 🌐 Way 3: 1-Click Remote PowerShell Setup (Zero File Copy)
+On any client PC, press `Win + R`, type `powershell`, and run:
 ```powershell
 irm http://<HOST_IP>:8765/setup | iex
 ```
 *(Example: `irm http://192.168.31.20:8765/setup | iex`)*
-- Automatically downloads client scripts into `%LOCALAPPDATA%`, verifies SHA-256 hashes, sets wallpaper, and starts live sync!
-
-### 🌐 Way 3: Web Browser Download
-1. On any client PC, open Chrome, Edge, or Firefox and go to:
-   ```
-   http://<HOST_IP>:8765
-   ```
-2. Click **Download 2-Start-Client.bat** and double-click the downloaded file!
-   - The downloaded batch file has the Host IP already baked in dynamically!
 
 ---
 
@@ -59,7 +92,7 @@ irm http://<HOST_IP>:8765/setup | iex
 
 - **Add Photos Without Server Restarts**:
   Drop any photo (`.jpg`, `.png`, `.webp`, `.bmp`, `.gif`, `.tiff`) into the `Wallpapers/` folder on the Host PC.
-  Within **2 seconds**, the Host generates a new atomic manifest, and all 80+ client workstations download the photo and add it to the rotation cycle without stopping or restarting!
+  Within **2 seconds**, the Host generates a new atomic manifest, and all 100+ client workstations download the photo and add it to the rotation cycle without stopping or restarting!
 - **Remove Photos**:
   Delete an image from `Wallpapers/`. All client PCs automatically detect the deletion and prune it from their local cache.
 - **Dynamic Timer Reload**:
@@ -76,31 +109,30 @@ $$\text{Index} = \lfloor \text{EpochSeconds} / \text{IntervalSeconds} \rfloor \p
 
 ---
 
-## 💡 Frequently Asked Actions
+## 💡 Quick Command Reference
 
-| What You Want to Do | How to Do It in 1 Step |
+| Action | How to Do It |
 | :--- | :--- |
-| **Add a new photo without stopping server** | Just drop the photo file into `Wallpapers/` on the Host PC. Within 2-3 seconds, all client computers will automatically download and start showing it! |
-| **Remove a photo** | Delete the file from `Wallpapers/` on the Host PC. All client computers immediately prune it from their cache. |
-| **Change the slideshow timer** | Open `Host\HostConfig.json` in Notepad, change `"DefaultIntervalSeconds": 5` to any number (e.g. `10`), and save. Host auto-reloads dynamically! |
-| **Connect client PC in 3 seconds** | Open PowerShell on the client and run: `irm http://<HOST_IP>:8765/setup \| iex`. |
-| **Check connected clients** | In browser, open `http://<HOST_IP>:8765` or inspect `Host\clients.json` to view live client workstations. |
-| **Run verification tests** | Open PowerShell and run `powershell -ExecutionPolicy Bypass -File Tests\Run-All-Tests.ps1`. |
+| **Open client package share** | Run `1-Host-Network-Start.bat` (Admin). |
+| **Start wallpaper service** | Run `2-Host-Wallpaper-Start.bat` (Admin). |
+| **Install & run client agent** | Run `3-Client-Download-Start.bat` on client (Normal User). |
+| **Stop sharing client files** | Run `4-Host-Network-Stop.bat` (Admin). Wallpaper is unaffected! |
+| **Stop everything & cleanup** | Run `5-Stop-All.bat` (Admin). |
+| **Add a new photo** | Drop image into `Wallpapers/`. Syncs in 2 seconds automatically. |
+| **Run verification tests** | Run `powershell -ExecutionPolicy Bypass -File Tests\Run-All-Tests.ps1`. |
 
 ---
 
 ## ⚡ Key Highlights & Architecture
 
 - **Zero External Dependencies**: Operates exclusively using built-in Windows PowerShell 5.1+, Windows APIs via Win32 P/Invoke (`SystemParametersInfoW`), and the Windows Defender Firewall. **No Python, Node.js, Java, databases, or cloud services required**.
-- **Exactly Two User-Facing Launchers**: Eliminates confusing multiple scripts or installers. The system exposes strictly `1-Start-Host.bat` and `2-Start-Client.bat`.
+- **Five Dedicated Launchers**: Clean separation between share management, wallpaper delivery, client installation, selective stop, and complete shutdown.
 - **1 Host to 30–100+ Clients**: Scales smoothly to 100+ concurrent Windows workstations with sub-second latency and zero dropped requests.
 - **Role-Based Access Control (RBAC)**:
   - **`SuperAdmin / HostAdmin`**: Full control over host synchronization, fleet management, client roster audits, and system configuration via `AdminSecret`.
   - **`ClientNode`**: Restricted access to authenticated manifest retrieval, binary asset streaming, and heartbeat telemetry via provisioned `clientToken`.
   - **`Monitor / Auditor`**: Unauthenticated read-only health probe access (`/api/v1/health`) for network monitoring tools.
 - **Zero Hardcoded Secrets in Git**: No credentials, tokens, or personal passwords are committed to source control. Secrets are generated cryptographically on first run and stored locally with strict Windows ACLs.
-- **Automatic Auto-Discovery & Resilient Fallback**: Clients locate the host via UDP broadcast handshake on port `8766` with automated fallback to subnet sweep and static IP configuration.
-- **Deterministic Desktop Rotation**: Seamless cycling through local cache even during network interruptions, host reboots, or temporary disconnections.
 - **Single-Instance Mutex Guarantee**: Prevents duplicate client processes and desktop lockups via session-scoped system mutex (`Local\LAN_Dynamic_Wallpaper_Client_$userSid`).
 
 ---
@@ -151,37 +183,43 @@ $$\text{Index} = \lfloor \text{EpochSeconds} / \text{IntervalSeconds} \rfloor \p
 
 ```
 LAN-Dynamic-Wallpaper/
-├── 1-Start-Host.bat             # 🖥️ 1-CLICK HOST LAUNCHER (Run on central Host PC)
-├── 2-Start-Client.bat           # 💻 1-CLICK CLIENT LAUNCHER (Normal User - No Admin Needed!)
+├── 1-Host-Network-Start.bat     # 🌐 Step 1: Open temporary client-package SMB share (Admin)
+├── 2-Host-Wallpaper-Start.bat   # 🖼️ Step 2: Start central wallpaper HTTP server (Admin)
+├── 3-Client-Download-Start.bat   # 💻 Step 3: Client download & launcher (Normal User - No Admin!)
+├── 4-Host-Network-Stop.bat      # 🛑 Step 4: Stop client-package SMB share only (Admin)
+├── 5-Stop-All.bat               # ⚡ Step 5: Stop all services & clean up (Admin)
 ├── Host/
 │   ├── Host.ps1                 # Multi-threaded HTTP listener & UDP discovery daemon
-│   ├── Publisher.ps1            # Format converter, magic-byte validator, SHA-256 hasher, manifest generator
+│   ├── Publisher.ps1            # Magic-byte validator, SHA-256 hasher, atomic manifest generator
 │   └── HostConfig.json          # Host network, port, security, and slideshow settings
 ├── Client/
 │   ├── Client.ps1               # Client background synchronization and health agent
 │   ├── Wallpaper.ps1            # Win32 P/Invoke desktop wallpaper rotation engine
 │   └── ClientConfig.json        # Client network, host IP, secret, and interval settings
-├── Wallpapers/                  # 📂 SINGLE PHOTO VAULT (Drop photos here; auto-distributed across LAN)
+├── Wallpapers/                  # 📂 PHOTO VAULT (Drop photos here; auto-distributed across LAN)
 ├── Tests/
-│   ├── Run-All-Tests.ps1        # Master test harness executing all 5 suites with summary scorecard
-│   ├── Test-Host.ps1            # Automated suite for host endpoints, tokens & RBAC (17 tests)
-│   ├── Test-Publisher.ps1       # Automated suite for file watcher, magic bytes & hashing (13 tests)
-│   ├── Test-Client.ps1          # Automated suite for Win32 API, rotation & mutex (16 tests)
+│   ├── Run-All-Tests.ps1        # Master test harness executing all 7 suites with scorecard
+│   ├── Diagnose-Network.ps1     # Diagnostic tool for network sharing, SMB & firewall issues
+│   ├── Test-Host.ps1            # Host endpoints, tokens & RBAC (17 tests)
+│   ├── Test-Publisher.ps1       # File watcher, magic bytes & hashing (13 tests)
+│   ├── Test-Client.ps1          # Win32 API, rotation & mutex (16 tests)
 │   ├── Test-Security.ps1        # Penetration suite for path traversal & auth bypass (15 tests)
-│   └── Test-100Clients.ps1      # 100-client concurrent load benchmark simulation (100 nodes, 400 reqs)
+│   ├── Test-LiveIntegration.ps1 # Dynamic reload, manifest & bootstrap (20 tests)
+│   ├── Test-100Clients.ps1      # 100-client concurrent load benchmark simulation (100 nodes, 400 reqs)
+│   └── Test-Sharing.ps1         # Service separation, share lifecycle & stop-all verification (31 tests)
 ├── README.md                    # Primary system architecture, quickstart, and reference
-└── INSTALLATION-GUIDE.md        # Comprehensive host and client deployment manual
+└── INSTALLATION-GUIDE.md        # Comprehensive deployment and troubleshooting manual
 ```
 
 ---
 
 ## 🖥️ Supported Operating Systems & Prerequisites
 
-- **Operating System**: Windows 11 (all editions) or Windows 10 (Version 1809 or newer, 64-bit/32-bit).
+- **Operating System**: Windows 11 (all editions, including Home) or Windows 10 (Version 1809 or newer).
 - **PowerShell**: Windows PowerShell 5.1 (built into Windows) or PowerShell 7.x.
-- **Host Permissions**: Administrator elevation required on the Host PC to bind port `8765` for LAN HTTP streaming. `1-Start-Host.bat` handles this automatically.
-- **Client Permissions**: **Zero Administrator Rights Needed**. Any student or standard Windows user can run `2-Start-Client.bat`. Changing desktop wallpaper and configuring user startup operate entirely within the logged-in user's interactive session (`HKEY_CURRENT_USER`).
-- **Network**: Wired Ethernet LAN or stable private Wi-Fi network on the same IP subnet.
+- **Host Permissions**: Administrator elevation required for Host scripts (`1`, `2`, `4`, `5`) to bind ports and manage SMB shares. Handled automatically via UAC prompts.
+- **Client Permissions**: **Zero Administrator Rights Needed**. Standard user accounts can run `3-Client-Download-Start.bat`. Changing desktop wallpaper operates entirely within the logged-in user's interactive session (`HKEY_CURRENT_USER`).
+- **Network**: Wired Ethernet LAN or private Wi-Fi network on the same IP subnet.
 - **Supported Formats**: `.jpg`, `.jpeg`, `.png`, `.bmp`, `.gif`, `.webp`, `.tiff`, `.heic`, `.ico`, `.mp4`, `.mov`, `.wmv`.
 
 ---
@@ -196,8 +234,8 @@ LAN-Dynamic-Wallpaper/
    - Request paths are URL-decoded, regex-filtered against directory traversal sequences (`..`, `%2f`, `%5c`), and verified to reside within the canonical `Wallpapers\` directory boundary.
 3. **Magic-Byte Binary Inspection**:
    - Every file added to `Wallpapers/` is inspected for genuine image headers (e.g. JPEG `FF D8 FF`, PNG `89 50 4E 47`) before publishing. Renamed executables or scripts are rejected.
-4. **Zero Secret Exposure**:
-   - `HostConfig.json` and `ClientConfig.json` contain empty string placeholders in version control. Fresh secrets are generated cryptographically on first run and protected with Windows File Access Control Lists (ACLs).
+4. **Isolated Share Exposure**:
+   - `1-Host-Network-Start.bat` shares **only** the `Client\` subdirectory. Host configuration, admin secrets, and server scripts are never exposed over SMB.
 5. **Interactive Desktop Session Isolation**:
    - The desktop wallpaper is applied using Win32 `SystemParametersInfoW` within the logged-in user's interactive session. Non-interactive background SYSTEM services cannot update the user desktop.
 
@@ -205,24 +243,24 @@ LAN-Dynamic-Wallpaper/
 
 ## 📊 Measured Benchmark Results (100 Concurrent Clients)
 
-The system includes an automated stress simulation suite (`Tests\Test-100Clients.ps1`) executing real end-to-end multi-step client transactions (Registration, Manifest retrieval, Binary download, Heartbeat telemetry) concurrently:
+The system includes an automated stress simulation suite (`Tests\Test-100Clients.ps1`) executing real end-to-end multi-step client transactions concurrently:
 
 | Metric | Measured Value | Target Standard | Status |
 | :--- | :--- | :--- | :--- |
 | **Fleet Scale** | **100 Concurrent Workstations** | 30–100 Clients | ✅ PASS |
 | **Total HTTP Transactions** | **400 Requests** | 400 Requests | ✅ PASS |
-| **Wall-Clock Duration** | **2.04 seconds** | < 15 seconds | ✅ PASS |
-| **Fleet Throughput** | **196.2 requests / sec** | > 50 req/sec | ✅ PASS |
+| **Wall-Clock Duration** | **1.89 seconds** | < 15 seconds | ✅ PASS |
+| **Fleet Throughput** | **211.3 requests / sec** | > 50 req/sec | ✅ PASS |
 | **Workflow Success Rate** | **100% (100 / 100)** | 100% | ✅ PASS |
 | **Dropped / Failed Requests** | **0 Requests** | 0 Requests | ✅ PASS |
-| **Average End-to-End Latency** | **328.9 ms** | < 1000 ms | ✅ PASS |
-| **95th Percentile (p95) Latency**| **433 ms** | < 2000 ms | ✅ PASS |
+| **Average End-to-End Latency** | **300.2 ms** | < 1000 ms | ✅ PASS |
+| **95th Percentile (p95) Latency**| **479 ms** | < 2000 ms | ✅ PASS |
 
 ---
 
 ## 🧪 Automated Test Verification
 
-To run the full enterprise automated test harness:
+To run the complete automated test suite:
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File Tests\Run-All-Tests.ps1
 ```
@@ -237,37 +275,19 @@ Suite                                       Status Duration
 -----                                       ------ --------
 Publisher Engine (Validation & Atomic Sync) PASSED 2.05 s  
 Client Engine (Win32 API & Local Cache)     PASSED 2.05 s  
-Host Server (Routes, Tokens & RBAC)         PASSED 6.06 s  
-Security Penetration (Traversal & Bypass)   PASSED 6.06 s  
-Live Integration & Dynamic Reload Calls     PASSED 8.08 s  
-100-Client Concurrency Load Benchmark       PASSED 8.07 s  
+Host Server (Routes, Tokens & RBAC)         PASSED 5.05 s  
+Security Penetration (Traversal & Bypass)   PASSED 5.07 s  
+Live Integration & Dynamic Reload Calls     PASSED 7.11 s  
+100-Client Concurrency Load Benchmark       PASSED 7.08 s  
+Service Separation & Stop-All Verification  PASSED 7.09 s  
 
-Total Suites Run     : 6
-Total Suites Passed  : 6 (100% Success Rate)
+Total Suites Run     : 7
+Total Suites Passed  : 7 (100% Success Rate)
 Total Suites Failed  : 0
-Total Execution Time : 32.44 seconds
+Total Execution Time : 35.56 seconds
 ==============================================================================
 FINAL VERDICT: PASS - 100% of test suites verified successfully.
 ```
-
----
-
-## 🗑️ Clean Uninstallation
-
-### On Client Workstations:
-1. Close the client console window if running.
-2. Remove the auto-start entry from the Windows registry:
-   ```powershell
-   Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "LAN-Dynamic-Wallpaper-Client" -ErrorAction SilentlyContinue
-   ```
-3. Delete `%LOCALAPPDATA%\LAN-Dynamic-Wallpaper-Client`.
-
-### On the Host PC:
-1. Close the host console window.
-2. Delete the SMB share:
-   ```cmd
-   net share LAN-Dynamic-Wallpaper /delete /y
-   ```
 
 ---
 
@@ -303,13 +323,3 @@ FINAL VERDICT: PASS - 100% of test suites verified successfully.
     </td>
   </tr>
 </table>
-
-<!-- =========================================================================
-   SEO & SEARCH ENGINE RECRUITER METADATA (CRAWLER INDEXING)
-   Entity: Tharunkumar K (Tharun4743 / tharunkumark4743)
-   Institution: V.S.B. Engineering College, Karur (VSBEC)
-   Department: Information Technology (Batch 2024-2028)
-   Distinctions: Best GitHub Profile VSBEC, Top Developer Karur, National Hackathon Winner
-   Keywords: Tharunkumar K, Tharunkumar VSBEC, Tharun4743, VSB Engineering College Karur, VSBEC IT, LAN Dynamic Wallpaper, Windows 11 Slideshow
-   Canonical URL: https://github.com/Tharun4743/LAN-Dynamic-Wallpaper
-========================================================================= -->
