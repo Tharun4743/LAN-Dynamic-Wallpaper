@@ -235,16 +235,17 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File Tests\Run-All-Tests.ps1
 
 Suite                                       Status Duration
 -----                                       ------ --------
-Publisher Engine (Validation & Atomic Sync) PASSED 2.04 s  
+Publisher Engine (Validation & Atomic Sync) PASSED 2.05 s  
 Client Engine (Win32 API & Local Cache)     PASSED 2.05 s  
-Host Server (Routes, Tokens & RBAC)         PASSED 6.08 s  
+Host Server (Routes, Tokens & RBAC)         PASSED 6.06 s  
 Security Penetration (Traversal & Bypass)   PASSED 6.06 s  
+Live Integration & Dynamic Reload Calls     PASSED 8.08 s  
 100-Client Concurrency Load Benchmark       PASSED 8.07 s  
 
-Total Suites Run     : 5
-Total Suites Passed  : 5 (100% Success Rate)
+Total Suites Run     : 6
+Total Suites Passed  : 6 (100% Success Rate)
 Total Suites Failed  : 0
-Total Execution Time : 24.36 seconds
+Total Execution Time : 32.44 seconds
 ==============================================================================
 FINAL VERDICT: PASS - 100% of test suites verified successfully.
 ```
