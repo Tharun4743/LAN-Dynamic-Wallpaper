@@ -568,6 +568,8 @@ function Start-HostServer {
 
     $lastReconciliation = [DateTime]::UtcNow
     $lastRegistrySave = [DateTime]::UtcNow
+    $lastConfigCheck = [DateTime]::UtcNow
+    $lastConfigFileWrite = if (Test-Path -LiteralPath $ConfigFilePath) { (Get-Item -LiteralPath $ConfigFilePath).LastWriteTimeUtc } else { [DateTime]::MinValue }
     $currentHostWallpaper = ""
     $localImageFiles = New-Object System.Collections.Generic.List[string]
 
@@ -607,6 +609,30 @@ function Start-HostServer {
                 if (-not $script:Running) { break }
 
                 $now = [DateTime]::UtcNow
+
+                # Dynamic re-read of HostConfig.json if modified (e.g. interval changed without restarting server)
+                if (($now - $lastConfigCheck).TotalSeconds -ge 2) {
+                    $lastConfigCheck = $now
+                    try {
+                        if (Test-Path -LiteralPath $ConfigFilePath) {
+                            $currentFileWrite = (Get-Item -LiteralPath $ConfigFilePath).LastWriteTimeUtc
+                            if ($currentFileWrite -gt $lastConfigFileWrite) {
+                                $lastConfigFileWrite = $currentFileWrite
+                                $newCfg = Get-PublisherConfig -Path $ConfigFilePath
+                                if ($null -ne $newCfg -and $null -ne $newCfg.Slideshow -and $newCfg.Slideshow.DefaultIntervalSeconds -gt 0) {
+                                    if ($newCfg.Slideshow.DefaultIntervalSeconds -ne $defaultInterval) {
+                                        $defaultInterval = $newCfg.Slideshow.DefaultIntervalSeconds
+                                        Write-HostLog "Dynamic config reload: Slideshow interval updated to $defaultInterval seconds." -Level AUDIT
+                                    }
+                                }
+                                if ($null -ne $newCfg -and $null -ne $newCfg.Security) {
+                                    if ($newCfg.Security.MaxImageSizeBytes -gt 0) { $maxImageBytes = $newCfg.Security.MaxImageSizeBytes }
+                                    if ($newCfg.Security.AllowedExtensions) { $allowedExts = $newCfg.Security.AllowedExtensions }
+                                }
+                            }
+                        }
+                    } catch {}
+                }
 
                 # Ultra-fast fallback reconciliation (every 2 seconds) so changes in Wallpapers folder update dynamically without stopping server
                 if (($now - $lastReconciliation).TotalSeconds -ge 2) {
@@ -725,12 +751,15 @@ function Start-HostServer {
                 }
 
                 # --------------------------------------------------------------
-                # ROUTE -0b: GET /2-Start-Client.bat (Direct Batch Download)
+                # ROUTE -0b: GET /2-Start-Client.bat (Direct Batch Download with Dynamic Host IP)
                 # --------------------------------------------------------------
                 if ($method -eq "GET" -and $path -eq "/2-Start-Client.bat") {
                     $batPath = [System.IO.Path]::GetFullPath((Join-Path $scriptDir "../2-Start-Client.bat"))
                     if (Test-Path -LiteralPath $batPath) {
-                        $bytes = [System.IO.File]::ReadAllBytes($batPath)
+                        $batContent = [System.IO.File]::ReadAllText($batPath, [System.Text.Encoding]::ASCII)
+                        # Dynamically inject current Host IP so clients downloading via browser connect immediately
+                        $batContent = $batContent.Replace('set "SERVER_OVERRIDE="', "set `"SERVER_OVERRIDE=$hostIp`"")
+                        $bytes = [System.Text.Encoding]::ASCII.GetBytes($batContent)
                         $response.StatusCode = 200
                         $response.ContentType = "application/x-bat"
                         $response.Headers.Add("Content-Disposition", "attachment; filename=2-Start-Client.bat")

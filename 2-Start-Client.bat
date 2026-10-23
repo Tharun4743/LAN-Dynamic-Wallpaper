@@ -36,8 +36,15 @@ if exist "%SOURCE_DIR%Client\Client.ps1" (
         copy /y "%SOURCE_DIR%Client\ClientConfig.json" "%LOCAL_CLIENT%\ClientConfig.json" >nul 2>&1
     )
     set "RUN_SCRIPT=%LOCAL_CLIENT%\Client.ps1"
+) else if exist "%SOURCE_DIR%Client.ps1" (
+    copy /y "%SOURCE_DIR%Client.ps1" "%LOCAL_CLIENT%\Client.ps1" >nul 2>&1
+    copy /y "%SOURCE_DIR%Wallpaper.ps1" "%LOCAL_CLIENT%\Wallpaper.ps1" >nul 2>&1
+    if not exist "%LOCAL_CLIENT%\ClientConfig.json" (
+        copy /y "%SOURCE_DIR%ClientConfig.json" "%LOCAL_CLIENT%\ClientConfig.json" >nul 2>&1
+    )
+    set "RUN_SCRIPT=%LOCAL_CLIENT%\Client.ps1"
 ) else (
-    set "RUN_SCRIPT=%SOURCE_DIR%Client.ps1"
+    set "RUN_SCRIPT=%LOCAL_CLIENT%\Client.ps1"
 )
 
 :: Run Client Agent (with Host override if opened from network share)

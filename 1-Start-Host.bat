@@ -65,8 +65,9 @@ echo  [3/6] Opening Windows Defender Firewall for LAN Sharing & Discovery...
 netsh advfirewall firewall set rule group="File and Printer Sharing" new enable=Yes >nul 2>&1
 netsh advfirewall firewall set rule group="Network Discovery" new enable=Yes >nul 2>&1
 
-:: 4. Share folder across LAN for Everyone
+:: 4. Share folder across LAN for Everyone (Idempotent cleanup)
 echo  [4/6] Creating Windows SMB Share 'LAN-Dynamic-Wallpaper'...
+net share LAN-Dynamic-Wallpaper /delete /y >nul 2>&1
 net share LAN-Dynamic-Wallpaper="%SHARE_PATH%" /grant:Everyone,READ /users:unlimited >nul 2>&1
 
 :: 5. Recursively grant NTFS read & execute permissions to Everyone

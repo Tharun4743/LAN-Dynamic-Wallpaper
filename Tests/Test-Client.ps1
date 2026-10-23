@@ -152,6 +152,13 @@ try {
     Assert-Condition "Seconds remaining is positive and within interval" ($syncResult1.SecondsRemaining -ge 1 -and $syncResult1.SecondsRemaining -le 5)
     $syncResult2 = Get-SynchronizedWallpaper -ImageFiles $syncTestList -IntervalSeconds 5
     Assert-Condition "Deterministic clock synchronization across parallel nodes" ($syncResult1.Index -eq $syncResult2.Index -and $syncResult1.Path -eq $syncResult2.Path)
+
+    # TEST 7: Dynamic Interval Switching & Resilient Timing Calculation
+    Write-Host "`n-- Section 7: Dynamic Slideshow Timer Adaptation --" -ForegroundColor White
+    $syncResultShort = Get-SynchronizedWallpaper -ImageFiles $syncTestList -IntervalSeconds 3
+    $syncResultLong  = Get-SynchronizedWallpaper -ImageFiles $syncTestList -IntervalSeconds 60
+    Assert-Condition "Dynamic short interval (3s) calculation bounded" ($syncResultShort.SecondsRemaining -ge 1 -and $syncResultShort.SecondsRemaining -le 3)
+    Assert-Condition "Dynamic long interval (60s) calculation bounded" ($syncResultLong.SecondsRemaining -ge 1 -and $syncResultLong.SecondsRemaining -le 60)
 }
 finally {
     if (Test-Path -LiteralPath $testSandbox) {

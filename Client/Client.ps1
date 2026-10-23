@@ -86,6 +86,7 @@ $script:LocalCollection = New-Object System.Collections.Generic.List[string]
 $script:CurrentWallpaperHash = ""
 $script:ConsecutiveFailures = 0
 $script:LogLock = New-Object System.Object
+$script:ActiveInterval = 5
 
 function Write-ClientLog {
     [CmdletBinding()]
@@ -109,7 +110,11 @@ function Write-ClientLog {
 
     try {
         [System.Threading.Monitor]::Enter($script:LogLock)
-        $logDir = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "../Logs"))
+        $logDir = if ($script:IsNetworkShare -or ($PSScriptRoot -and $PSScriptRoot.StartsWith("\\"))) {
+            Join-Path $script:LocalClientBase "Logs"
+        } else {
+            [System.IO.Path]::GetFullPath((Join-Path $scriptDir "../Logs"))
+        }
         if (-not (Test-Path -LiteralPath $logDir)) {
             New-Item -ItemType Directory -Path $logDir -Force | Out-Null
         }
@@ -503,6 +508,20 @@ function Sync-ClientCollection {
         } catch {}
     }
 
+    # Check if Host changed slideshow interval dynamically
+    if ($null -ne $remoteManifest.PSObject.Properties['slideshowInterval'] -and $remoteManifest.slideshowInterval -gt 0) {
+        $hostInterval = [int]$remoteManifest.slideshowInterval
+        if ($hostInterval -ne $script:ActiveInterval) {
+            $script:ActiveInterval = $hostInterval
+            Write-ClientLog "Slideshow timer dynamically updated to $hostInterval seconds by Host." -Level SYNC
+            try {
+                $curCfg = Get-ClientConfig -Path $script:ConfigPath
+                $curCfg.Slideshow.IntervalSeconds = $hostInterval
+                Save-ClientConfig -Path $script:ConfigPath -ConfigObj $curCfg
+            } catch {}
+        }
+    }
+
     if ($remoteVersion -eq $localVersion) {
         Write-ClientLog "Local collection up to date (Version: $localVersion)." -Level DEBUG
         return $true
@@ -653,7 +672,6 @@ function Start-ClientAgent {
     }
 
     $authSecret = $cfg.Security.AuthSecret
-    $authSecret = $cfg.Security.AuthSecret
     if ([string]::IsNullOrWhiteSpace($authSecret) -or $authSecret -eq "GENERATE_ON_INSTALL") {
         if ($env:LAN_WALLPAPER_AUTH_SECRET) {
             $authSecret = $env:LAN_WALLPAPER_AUTH_SECRET
@@ -704,6 +722,7 @@ function Start-ClientAgent {
     $enableDisc = $cfg.Connection.EnableDiscovery
     $pollInterval = if ($cfg.Connection.PollIntervalSeconds -gt 0) { $cfg.Connection.PollIntervalSeconds } else { 3 }
     $slideshowInterval = if ($cfg.Slideshow.IntervalSeconds -gt 0) { $cfg.Slideshow.IntervalSeconds } else { 5 }
+    $script:ActiveInterval = $slideshowInterval
     $maxBackoff = $cfg.Connection.MaxBackoffSeconds
 
     if (-not [string]::IsNullOrWhiteSpace($HostOverride)) {
@@ -787,7 +806,7 @@ function Start-ClientAgent {
             # 1. Exact-Second Synchronized Desktop Wallpaper Rotation
             # ------------------------------------------------------------------
             if ($script:LocalCollection.Count -gt 0) {
-                $syncObj = Get-SynchronizedWallpaper -ImageFiles $script:LocalCollection -IntervalSeconds $slideshowInterval
+                $syncObj = Get-SynchronizedWallpaper -ImageFiles $script:LocalCollection -IntervalSeconds $script:ActiveInterval
                 if ($null -ne $syncObj -and $syncObj.Path -ne $currentAppliedWallpaper) {
                     $currentAppliedWallpaper = $syncObj.Path
                     $script:CurrentIndex = $syncObj.Index

@@ -91,7 +91,12 @@ function Set-DesktopWallpaper {
                 $gfx.DrawImage($img, 0, 0, $img.Width, $img.Height)
                 $gfx.Dispose()
                 $img.Dispose()
-                $bmp.Save($convertedPath, [System.Drawing.Imaging.ImageFormat]::Jpeg)
+                try {
+                    $bmp.Save($convertedPath, [System.Drawing.Imaging.ImageFormat]::Jpeg)
+                } catch {
+                    $convertedPath = Join-Path $env:TEMP ("lan-wallpaper-" + [System.IO.Path]::GetFileNameWithoutExtension($fullPath) + ".converted.jpg")
+                    $bmp.Save($convertedPath, [System.Drawing.Imaging.ImageFormat]::Jpeg)
+                }
                 $bmp.Dispose()
             }
             $fullPath = $convertedPath
