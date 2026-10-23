@@ -146,6 +146,19 @@ function Save-ClientConfig {
     try {
         $json = $ConfigObj | ConvertTo-Json -Depth 5
         [System.IO.File]::WriteAllText($Path, $json, [System.Text.Encoding]::UTF8)
+
+        # Apply restrictive Windows ACLs to protect client configuration
+        try {
+            $acl = Get-Acl -LiteralPath $Path
+            $acl.SetAccessRuleProtection($true, $false)
+            $userSid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
+            $systemSid = New-Object System.Security.Principal.SecurityIdentifier([System.Security.Principal.WellKnownSidType]::LocalSystemSid, $null)
+            $adminSid = New-Object System.Security.Principal.SecurityIdentifier([System.Security.Principal.WellKnownSidType]::BuiltinAdministratorsSid, $null)
+            $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($userSid, "FullControl", "Allow")))
+            $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($systemSid, "FullControl", "Allow")))
+            $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($adminSid, "FullControl", "Allow")))
+            Set-Acl -LiteralPath $Path -AclObject $acl -ErrorAction SilentlyContinue
+        } catch {}
     }
     catch {
         Write-ClientLog "Failed saving config: $($_.Exception.Message)" -Level WARN
@@ -383,7 +396,8 @@ function Register-ClientNode {
     param(
         [string]$BaseUrl,
         [string]$AuthSecret,
-        [ref]$ClientId
+        [ref]$ClientId,
+        [ref]$ClientToken = $null
     )
 
     $regUri = "$BaseUrl/api/v1/auth/register"
@@ -398,6 +412,9 @@ function Register-ClientNode {
     if ($res.StatusCode -eq 200 -and $res.Content) {
         $data = $res.Content | ConvertFrom-Json
         $ClientId.Value = $data.clientId
+        if ($null -ne $ClientToken -and $data.PSObject.Properties['clientToken'] -and -not [string]::IsNullOrWhiteSpace($data.clientToken)) {
+            $ClientToken.Value = $data.clientToken
+        }
         Write-ClientLog "Client registration confirmed. Assigned Client ID: $($data.clientId)" -Level INFO
         return $true
     }
@@ -577,6 +594,7 @@ function Start-ClientAgent {
     }
 
     $authSecret = $cfg.Security.AuthSecret
+    $authSecret = $cfg.Security.AuthSecret
     if ([string]::IsNullOrWhiteSpace($authSecret) -or $authSecret -eq "GENERATE_ON_INSTALL") {
         if ($env:LAN_WALLPAPER_AUTH_SECRET) {
             $authSecret = $env:LAN_WALLPAPER_AUTH_SECRET
@@ -588,25 +606,13 @@ function Start-ClientAgent {
                 if ($hCfg.Security.AuthSecret) {
                     $authSecret = $hCfg.Security.AuthSecret
                     $cfg.Security.AuthSecret = $authSecret
-                    Save-ClientConfig -Path $Path -ConfigObj $cfg
+                    Save-ClientConfig -Path $ConfigPath -ConfigObj $cfg
                     Write-ClientLog "Synchronized AuthSecret from local Host configuration." -Level INFO
                 }
             } catch {}
         }
-        elseif ([Environment]::UserInteractive -and -not $RunOnce) {
-            Write-Host ""
-            Write-Host "==============================================================================" -ForegroundColor Yellow
-            Write-Host "  CLIENT AUTHENTICATION SETUP" -ForegroundColor Yellow
-            Write-Host "==============================================================================" -ForegroundColor Yellow
-            Write-Host "  Enter the Client Auth Secret from your Host PC console or HostConfig.json" -ForegroundColor White
-            Write-Host "  (If your Host has RequireAuthentication=false, you may simply press Enter):" -ForegroundColor Gray
-            $userKey = Read-Host "  Auth Secret"
-            if (-not [string]::IsNullOrWhiteSpace($userKey)) {
-                $authSecret = $userKey.Trim()
-                $cfg.Security.AuthSecret = $authSecret
-                Save-ClientConfig -Path $Path -ConfigObj $cfg
-                Write-ClientLog "Saved AuthSecret to ClientConfig.json." -Level INFO
-            }
+        else {
+            Write-ClientLog "No static pre-shared key configured. Utilizing automatic LAN client provisioning." -Level INFO
         }
     }
 
@@ -675,7 +681,12 @@ function Start-ClientAgent {
         if (-not [string]::IsNullOrWhiteSpace($hostIp)) {
             $baseUrl = "http://$hostIp`:$hostPort"
             $refId = [ref]$clientId
-            Register-ClientNode -BaseUrl $baseUrl -AuthSecret $authSecret -ClientId $refId
+            $refToken = [ref]$authSecret
+            Register-ClientNode -BaseUrl $baseUrl -AuthSecret $authSecret -ClientId $refId -ClientToken $refToken | Out-Null
+            if ($refToken.Value -ne $authSecret) {
+                $authSecret = $refToken.Value
+                $cfg.Security.AuthSecret = $authSecret
+            }
             Sync-ClientCollection -BaseUrl $baseUrl -AuthSecret $authSecret -CacheDir $cacheDir -ClientId $refId | Out-Null
             $script:LocalCollection = Refresh-LocalCollectionList -CacheDir $cacheDir
             if ($script:LocalCollection.Count -gt 0) {
@@ -739,9 +750,14 @@ function Start-ClientAgent {
 
                     # Register if not yet enrolled
                     if ([string]::IsNullOrWhiteSpace($clientId)) {
-                        $regOk = Register-ClientNode -BaseUrl $baseUrl -AuthSecret $authSecret -ClientId $refId
+                        $refToken = [ref]$authSecret
+                        $regOk = Register-ClientNode -BaseUrl $baseUrl -AuthSecret $authSecret -ClientId $refId -ClientToken $refToken
                         if ($regOk) {
                             $clientId = $refId.Value
+                            if ($refToken.Value -ne $authSecret) {
+                                $authSecret = $refToken.Value
+                                $cfg.Security.AuthSecret = $authSecret
+                            }
                             $cfg.Security.ClientId = $clientId
                             Save-ClientConfig -Path $ConfigPath -ConfigObj $cfg
                         }

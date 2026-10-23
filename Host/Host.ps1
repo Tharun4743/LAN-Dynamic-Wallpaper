@@ -60,6 +60,7 @@ $script:HttpListener = $null
 $script:UdpListener = $null
 $script:HostMutex = $null
 $script:ClientRegistry = @{}
+$script:ClientTokens = [System.Collections.Generic.Dictionary[string, string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 $script:ClientLock = New-Object System.Object
 $script:LogLock = New-Object System.Object
 $script:LogDirectory = $null
@@ -171,9 +172,13 @@ function Load-ClientRegistry {
             $raw = Get-Content -LiteralPath $Path -Raw -Encoding UTF8
             $json = $raw | ConvertFrom-Json
             $dict = @{}
+            $script:ClientTokens.Clear()
             if ($null -ne $json) {
                 foreach ($prop in $json.PSObject.Properties) {
                     $dict[$prop.Name] = $prop.Value
+                    if ($null -ne $prop.Value -and $prop.Value.PSObject.Properties['clientToken'] -and -not [string]::IsNullOrWhiteSpace($prop.Value.clientToken)) {
+                        $script:ClientTokens[$prop.Value.clientToken] = $prop.Name
+                    }
                 }
             }
             $script:ClientRegistry = $dict
@@ -526,7 +531,7 @@ function Start-HostServer {
         Write-Host "  BINDING ERROR: Cannot bind HTTP Server to LAN address http://$hostIp`:$port/" -ForegroundColor Red
         Write-Host "==============================================================================" -ForegroundColor Red
         Write-Host "  To enable LAN access, please perform one of the following:" -ForegroundColor Yellow
-        Write-Host "  1. Right-click 1-Start-Host.bat and choose 'Run as administrator'" -ForegroundColor White
+        Write-Host "  1. Right-click Start-Host.bat and choose 'Run as administrator'" -ForegroundColor White
         Write-Host "  2. Or reserve the URL ACL manually from an elevated command prompt:" -ForegroundColor White
         Write-Host "     netsh http add urlacl url=http://+:$port/ user=Everyone" -ForegroundColor Cyan
         Write-Host "==============================================================================" -ForegroundColor Red
@@ -636,6 +641,7 @@ function Start-HostServer {
                         version           = "1.0.0"
                         uptimeSeconds     = $uptime
                         hostIp            = $hostIp
+                        requireAuth       = [bool]$cfg.Security.RequireAuthentication
                         collectionVersion = $curVer
                         totalImages       = $imgCount
                         registeredClients = $script:ClientRegistry.Count
@@ -648,7 +654,24 @@ function Start-HostServer {
                 # --------------------------------------------------------------
                 if ($method -eq "POST" -and $path -eq "/api/v1/auth/register") {
                     $token = Get-RequestAuthToken -Request $request
-                    if ($cfg.Security.RequireAuthentication -and $token -ne $authSecret) {
+                    $isLanClient = ($clientIp -like "192.168.*" -or $clientIp -like "10.*" -or $clientIp -like "172.1[6-9].*" -or $clientIp -like "172.2[0-9].*" -or $clientIp -like "172.3[0-1].*" -or $clientIp -eq "127.0.0.1" -or $clientIp -eq "::1")
+                    $autoEnroll = if ($null -ne $cfg.Security.PSObject.Properties['AutoEnrollLanClients']) { [bool]$cfg.Security.AutoEnrollLanClients } else { $true }
+
+                    $authAuthorized = $false
+                    if (-not $cfg.Security.RequireAuthentication) {
+                        $authAuthorized = $true
+                    }
+                    elseif (-not [string]::IsNullOrWhiteSpace($token) -and $token -eq $authSecret) {
+                        $authAuthorized = $true
+                    }
+                    elseif ($autoEnroll -and $isLanClient -and [string]::IsNullOrWhiteSpace($token)) {
+                        $authAuthorized = $true
+                    }
+                    else {
+                        $authAuthorized = $false
+                    }
+
+                    if (-not $authAuthorized) {
                         Write-HostLog "Registration rejected: Invalid auth secret from $clientIp" -Level AUDIT -ClientIp $clientIp
                         Send-JsonResponse -Response $response -StatusCode 401 -Data @{ error = "Unauthorized: Invalid authentication secret" }
                         continue
@@ -660,6 +683,7 @@ function Start-HostServer {
                     $cVersion = if ($null -ne $body -and $body.PSObject.Properties['clientVersion']) { $body.clientVersion } else { "1.0.0" }
 
                     $clientId = "CLT-" + ([System.Guid]::NewGuid().ToString("N").Substring(0, 12).ToUpperInvariant())
+                    $clientToken = "CLTK-" + (New-CryptoSecret).Substring(0, 32)
                     
                     [System.Threading.Monitor]::Enter($script:ClientLock)
                     try {
@@ -672,14 +696,17 @@ function Start-HostServer {
                             registeredAt  = [DateTime]::UtcNow.ToString("o")
                             lastSeenAt    = [DateTime]::UtcNow.ToString("o")
                             status        = "ONLINE"
+                            clientToken   = $clientToken
                             currentHash   = ""
                         }
+                        $script:ClientTokens[$clientToken] = $clientId
                     }
                     finally {
                         [System.Threading.Monitor]::Exit($script:ClientLock)
                     }
 
                     Write-HostLog "Client registered successfully: $clientId ($hostname at $clientIp)" -Level AUDIT -ClientIp $clientIp
+                    Save-ClientRegistry -Path $clientsStorePath
                     
                     $mPath = Join-Path $publishedDir "manifest.json"
                     $curVer = "none"
@@ -690,6 +717,7 @@ function Start-HostServer {
 
                     Send-JsonResponse -Response $response -StatusCode 200 -Data @{
                         clientId               = $clientId
+                        clientToken            = $clientToken
                         status                 = "ENROLLED"
                         slideshowInterval      = $defaultInterval
                         collectionVersion      = $curVer
@@ -701,8 +729,8 @@ function Start-HostServer {
                 # RBAC Token Check for Data Endpoints (Client or Admin)
                 # --------------------------------------------------------------
                 $token = Get-RequestAuthToken -Request $request
-                $isAdmin = ($token -eq $adminSecret)
-                $isClient = ($token -eq $authSecret)
+                $isAdmin = ($null -ne $token -and $token -eq $adminSecret)
+                $isClient = ($null -ne $token -and ($token -eq $authSecret -or $script:ClientTokens.ContainsKey($token)))
 
                 if ($cfg.Security.RequireAuthentication -and (-not $isAdmin -and -not $isClient)) {
                     Write-HostLog "Access Denied: Missing or invalid token for $path" -Level WARN -ClientIp $clientIp

@@ -146,8 +146,8 @@ Write-Host ""
 if ($foundHosts.Count -eq 0) {
     Write-Host "No active Host PCs responded on UDP port $DiscoveryPort." -ForegroundColor Yellow
     Write-Host "Possible causes:" -ForegroundColor Gray
-    Write-Host "  1. Host server is not running (execute 1-Start-Host.bat on Host PC)." -ForegroundColor Gray
-    Write-Host "  2. Host firewall is blocking UDP port $DiscoveryPort (run Installer\Configure-Firewall.ps1 on Host)." -ForegroundColor Gray
+    Write-Host "  1. Host server is not running (execute Start-Host.bat on Host PC)." -ForegroundColor Gray
+    Write-Host "  2. Host firewall is blocking UDP port $DiscoveryPort (Start-Host.bat configures this automatically when run as administrator)." -ForegroundColor Gray
     Write-Host "  3. Wired network switch or router drops UDP broadcast traffic between subnets." -ForegroundColor Gray
 }
 elseif ($foundHosts.Count -eq 1) {

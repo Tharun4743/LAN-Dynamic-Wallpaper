@@ -37,7 +37,7 @@ Before attempting manual troubleshooting, execute the diagnostic scripts located
    ```
 
 **Remediation**:
-- **Firewall blocked**: Launch `1-Start-Host.bat` as Administrator on the Host PC (it automatically registers Windows Firewall rules for TCP 8765 and UDP 8766).
+- **Firewall blocked**: Launch `Start-Host.bat` as Administrator on the Host PC (it automatically registers Windows Firewall rules for TCP 8765 and UDP 8766).
 - **Wrong Host IP**: Verify the host's actual IPv4 address using `Get-NetIPAddress -AddressFamily IPv4` on the Host PC and update `Client\ClientConfig.json`.
 - **Network Profile**: Ensure the Ethernet network connection is set to **Private** or **Domain**, not Public:
   ```powershell
@@ -54,34 +54,27 @@ Before attempting manual troubleshooting, execute the diagnostic scripts located
 **Remediation (Static Fallback)**:
 The client is architected to operate flawlessly with a static IP configuration without relying on UDP broadcast.
 1. Open `Client\ClientConfig.json` on the client workstation.
-2. Set `HostIp` directly to the Host PC's static IP address:
+2. Set `HostAddress` directly to the Host PC's static IP address:
    ```json
    {
-     "Host": {
-       "HostIp": "192.168.1.50",
-       "Port": 8765,
-       "AutoDiscover": false
+     "Connection": {
+       "HostAddress": "192.168.1.50",
+       "HostPort": 8765
      }
    }
    ```
-3. Save the file. The client will immediately bypass broadcast discovery and connect directly.
+3. Save the file. Run `Start-Client.bat` and the client will connect directly.
 
 ---
 
 ### Scenario 3: Authentication Error (HTTP 401 Unauthorized)
 **Symptoms**: Client logs report `HTTP 401 Unauthorized: Invalid authentication secret`.
 
-**Cause**: The `AuthSecret` token in `ClientConfig.json` does not match the `AuthSecret` defined in the Host's `HostConfig.json`.
+**Cause**: The client request did not provide a recognized authentication token, or the token was revoked.
 
 **Remediation**:
-1. On the **Host PC**, inspect `Host\HostConfig.json` to find the current `AuthSecret`:
-   ```json
-   "Security": {
-     "AuthSecret": "<your_256_bit_client_token>",
-     ...
-   }
-   ```
-2. On the **Client PC**, enter this token when prompted by `2-Start-Client.bat` or save it directly into `Client\ClientConfig.json` under `"AuthSecret"`.
+1. By default, running `Start-Client.bat` on the local LAN automatically requests enrollment and receives an assigned `clientToken`.
+2. If the Host administrator disabled `AutoEnrollLanClients`, obtain the authorized client token from the Host console and save it into `Client\ClientConfig.json` under `"AuthSecret"`.
 
 ---
 

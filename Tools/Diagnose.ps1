@@ -47,7 +47,7 @@ if ($rules) {
         Write-Host "  Firewall Rule : $($r.DisplayName) | Enabled: $($r.Enabled) | Action: $($r.Action)" -ForegroundColor Green
     }
 } else {
-    Write-Host "  No application firewall rules found. Run 1-Start-Host.bat as Administrator on Host PC to configure automatically." -ForegroundColor Yellow
+    Write-Host "  No application firewall rules found. Run Start-Host.bat as Administrator on Host PC to configure automatically." -ForegroundColor Yellow
 }
 Write-Host ""
 

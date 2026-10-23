@@ -21,7 +21,7 @@ The system implements a multi-tier RBAC architecture:
 | Role | Permitted Endpoints | Authentication Required | Purpose |
 | :--- | :--- | :--- | :--- |
 | **`SuperAdmin / HostAdmin`** | `/api/v1/admin/clients`<br>`/api/v1/admin/sync`<br>All Client endpoints | **Yes** (`AdminSecret` / Bearer token) | Full administrative oversight, client roster telemetry, manual force-sync trigger. |
-| **`ClientNode`** | `/api/v1/auth/register`<br>`/api/v1/manifest`<br>`/api/v1/wallpaper/{file}`<br>`/api/v1/heartbeat` | **Yes** (`AuthSecret` / `X-Auth-Token`) | Enrolling client workstations, fetching manifests, streaming verified image binaries, reporting heartbeat telemetry. |
+| **`ClientNode`** | `/api/v1/auth/register`<br>`/api/v1/manifest`<br>`/api/v1/wallpaper/{file}`<br>`/api/v1/heartbeat` | **Yes** (`clientToken` / `AuthSecret`) | Enrolling client workstations, fetching manifests, streaming verified image binaries, reporting heartbeat telemetry. |
 | **`Monitor / Auditor`** | `/api/v1/health` | **No** (Public / Intranet) | Health probes, Prometheus/Nagios integration, uptime monitoring, collection version status. |
 
 ---
