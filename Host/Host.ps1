@@ -477,12 +477,24 @@ function Start-HostServer {
     Write-Host "  [TIMER]    Slideshow : $defaultInterval SECONDS (Exact-second sync on all PCs)" -ForegroundColor Yellow
     Write-Host "  [CAPACITY] Max Fleet : Up to 10,000 photos (100 MB per file limit)" -ForegroundColor White
     Write-Host "  [NETWORK]  Host IPv4 : $hostIp (HTTP: $port | UDP Discovery: $discPort)" -ForegroundColor Cyan
-    Write-Host "  [PUBLISHED] Active   : $(if ($initialManifest) { $initialManifest.totalImages } else { 0 }) assets ready on LAN" -ForegroundColor Green
+    # Auto-configure Windows Network Folder Share for Everyone (Read-Only)
+    try {
+        $rootProjectDir = [System.IO.Path]::GetFullPath((Join-Path $scriptDir ".."))
+        $existingShare = Get-SmbShare -Name "LAN-Dynamic-Wallpaper" -ErrorAction SilentlyContinue
+        if ($null -eq $existingShare) {
+            New-SmbShare -Name "LAN-Dynamic-Wallpaper" -Path $rootProjectDir -ReadAccess "Everyone" -FullAccess "Administrators" -ErrorAction SilentlyContinue | Out-Null
+        }
+    } catch {}
+
     Write-Host "------------------------------------------------------------------------------" -ForegroundColor DarkGray
-    Write-Host "  [HOW TO CONNECT CLIENT WORKSTATIONS OVER LAN]:" -ForegroundColor White
-    Write-Host "  Option A: On any client PC, double-click 'Start-Client.bat' (or '2-Start-Client.bat')" -ForegroundColor Cyan
-    Write-Host "  Option B: Or open PowerShell on any client PC and run 1-click command:" -ForegroundColor Cyan
+    Write-Host "  [EASY 1-CLICK METHODS FOR YOUR 80 CLIENT COMPUTERS]:" -ForegroundColor White
+    Write-Host "  Method 1 (Fastest): Open PowerShell on client PC and run:" -ForegroundColor Cyan
     Write-Host "            irm http://$hostIp`:$port/setup | iex" -ForegroundColor Yellow
+    Write-Host "  Method 2 (Network Share): Press Win + R on client PC, enter:" -ForegroundColor Cyan
+    Write-Host "            \\$hostIp\LAN-Dynamic-Wallpaper" -ForegroundColor Yellow
+    Write-Host "            and double-click '2-Start-Client.bat'" -ForegroundColor White
+    Write-Host "  Method 3 (Web Browser): In Chrome or Edge on client PC, open:" -ForegroundColor Cyan
+    Write-Host "            http://$hostIp`:$port" -ForegroundColor Yellow
     Write-Host "==============================================================================" -ForegroundColor Green
     Write-Host ""
 
