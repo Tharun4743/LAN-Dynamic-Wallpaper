@@ -29,10 +29,28 @@ $scriptDir = if (-not [string]::IsNullOrWhiteSpace($PSScriptRoot)) {
 } else {
     (Get-Location).Path
 }
-if ([string]::IsNullOrWhiteSpace($ConfigPath)) {
+$isNetworkShare = $scriptDir.StartsWith("\\") -or $scriptDir.StartsWith("//")
+$localClientBase = Join-Path $env:LOCALAPPDATA "LAN-Dynamic-Wallpaper-Client"
+
+if ($isNetworkShare) {
+    if (-not (Test-Path -LiteralPath $localClientBase)) {
+        New-Item -ItemType Directory -Path $localClientBase -Force | Out-Null
+    }
+    $localCfg = Join-Path $localClientBase "ClientConfig.json"
+    if (-not (Test-Path -LiteralPath $localCfg)) {
+        $sourceCfg = Join-Path $scriptDir "ClientConfig.json"
+        if (Test-Path -LiteralPath $sourceCfg) {
+            Copy-Item -LiteralPath $sourceCfg -Destination $localCfg -Force -ErrorAction SilentlyContinue
+        }
+    }
+    $ConfigPath = $localCfg
+}
+elseif ([string]::IsNullOrWhiteSpace($ConfigPath)) {
     $ConfigPath = Join-Path $scriptDir "ClientConfig.json"
 }
 $script:ConfigPath = [System.IO.Path]::GetFullPath($ConfigPath)
+$script:IsNetworkShare = $isNetworkShare
+$script:LocalClientBase = $localClientBase
 
 # Single Instance Mutex Enforcement (Session-Scoped to allow legitimate multi-user sessions)
 $userSid = ""
@@ -55,7 +73,7 @@ catch {
 }
 
 # Import Wallpaper Engine
-$wallpaperEngineScript = Join-Path $PSScriptRoot "Wallpaper.ps1"
+$wallpaperEngineScript = Join-Path $scriptDir "Wallpaper.ps1"
 if (-not (Test-Path -LiteralPath $wallpaperEngineScript)) {
     throw "Fatal: Wallpaper.ps1 not found at $wallpaperEngineScript"
 }
@@ -147,6 +165,13 @@ function Get-ClientConfig {
 function Save-ClientConfig {
     param([string]$Path, [object]$ConfigObj)
     try {
+        if ($Path.StartsWith("\\") -or $Path.StartsWith("//")) {
+            $localDir = Join-Path $env:LOCALAPPDATA "LAN-Dynamic-Wallpaper-Client"
+            if (-not (Test-Path -LiteralPath $localDir)) { New-Item -ItemType Directory -Path $localDir -Force | Out-Null }
+            $Path = Join-Path $localDir "ClientConfig.json"
+            $script:ConfigPath = $Path
+        }
+
         $json = $ConfigObj | ConvertTo-Json -Depth 5
         [System.IO.File]::WriteAllText($Path, $json, [System.Text.Encoding]::UTF8)
 
@@ -430,11 +455,13 @@ function Register-ClientNode {
             $ClientToken.Value = $data.clientToken
         }
         Write-ClientLog "Client registration confirmed. Assigned Client ID: $($data.clientId)" -Level INFO
+        $tokenVal = if ($data.PSObject.Properties['clientToken'] -and -not [string]::IsNullOrWhiteSpace($data.clientToken)) { $data.clientToken } else { "" }
+        $intervalVal = if ($data.PSObject.Properties['slideshowInterval']) { [int]$data.slideshowInterval } else { 5 }
         return [PSCustomObject]@{
             Success     = $true
             ClientId    = $data.clientId
-            ClientToken = (if ($data.PSObject.Properties['clientToken']) { $data.clientToken } else { "" })
-            Interval    = (if ($data.PSObject.Properties['slideshowInterval']) { $data.slideshowInterval } else { 5 })
+            ClientToken = $tokenVal
+            Interval    = $intervalVal
         }
     }
     else {
@@ -614,7 +641,13 @@ function Start-ClientAgent {
 
     $cfg = Get-ClientConfig -Path $Path
     $configDir = Split-Path $Path -Parent
-    $cacheDir = [System.IO.Path]::GetFullPath((Join-Path $configDir $cfg.Paths.CacheDir))
+    $cacheDir = if ($script:IsNetworkShare -or $configDir.StartsWith("\\")) {
+        $localCache = Join-Path $script:LocalClientBase "Cache"
+        if (-not (Test-Path -LiteralPath $localCache)) { New-Item -ItemType Directory -Path $localCache -Force | Out-Null }
+        $localCache
+    } else {
+        [System.IO.Path]::GetFullPath((Join-Path $configDir $cfg.Paths.CacheDir))
+    }
     if (-not (Test-Path -LiteralPath $cacheDir)) {
         New-Item -ItemType Directory -Path $cacheDir -Force | Out-Null
     }
@@ -646,8 +679,18 @@ function Start-ClientAgent {
     try {
         $runKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
         $currentVal = (Get-ItemProperty -Path $runKey -Name "LAN-Dynamic-Wallpaper-Client" -ErrorAction SilentlyContinue)."LAN-Dynamic-Wallpaper-Client"
-        $thisScript = if ($PSCommandPath) { $PSCommandPath } else { Join-Path $scriptDir "Client.ps1" }
-        $targetCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$([System.IO.Path]::GetFullPath($thisScript))`""
+        if ($script:IsNetworkShare) {
+            foreach ($sName in @("Client.ps1", "Wallpaper.ps1")) {
+                $src = Join-Path $scriptDir $sName
+                $dst = Join-Path $script:LocalClientBase $sName
+                if (Test-Path -LiteralPath $src) {
+                    Copy-Item -LiteralPath $src -Destination $dst -Force -ErrorAction SilentlyContinue
+                }
+            }
+        }
+        $localExec = Join-Path $script:LocalClientBase "Client.ps1"
+        $runTarget = if ($script:IsNetworkShare -and (Test-Path -LiteralPath $localExec)) { $localExec } else { if ($PSCommandPath) { $PSCommandPath } else { Join-Path $scriptDir "Client.ps1" } }
+        $targetCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$([System.IO.Path]::GetFullPath($runTarget))`""
         if ($currentVal -ne $targetCmd) {
             Set-ItemProperty -Path $runKey -Name "LAN-Dynamic-Wallpaper-Client" -Value $targetCmd -Force -ErrorAction SilentlyContinue | Out-Null
             Write-ClientLog "Registered interactive user logon auto-start in HKCU Run." -Level DEBUG
