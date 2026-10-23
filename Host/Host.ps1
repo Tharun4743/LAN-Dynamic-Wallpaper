@@ -637,6 +637,100 @@ function Start-HostServer {
             # Execute request handler in isolated block
             try {
                 # --------------------------------------------------------------
+                # ROUTE -1: GET / (Web Setup Portal for Lab Workstations)
+                # --------------------------------------------------------------
+                if ($method -eq "GET" -and ($path -eq "/" -or $path -eq "/index.html")) {
+                    $html = @"
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LAN Dynamic Wallpaper - Lab Setup</title>
+    <style>
+        :root { --bg: #090d16; --card: #131b2e; --border: #23314f; --accent: #2563eb; --accent-glow: #3b82f6; --text: #f1f5f9; --text-dim: #94a3b8; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; }
+        .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; max-width: 620px; width: 100%; padding: 36px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); text-align: center; }
+        .badge { display: inline-block; background: rgba(37,99,235,0.15); border: 1px solid rgba(59,130,246,0.3); color: #60a5fa; font-size: 13px; font-weight: 600; padding: 4px 12px; border-radius: 9999px; margin-bottom: 16px; }
+        h1 { margin: 0 0 10px; font-size: 26px; font-weight: 700; }
+        p { color: var(--text-dim); font-size: 15px; line-height: 1.6; margin: 0 0 24px; }
+        .code-box { background: #060911; border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; font-family: Consolas, 'Courier New', monospace; font-size: 14px; color: #38bdf8; word-break: break-all; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; text-align: left; }
+        .btn { display: inline-flex; align-items: center; justify-content: center; background: var(--accent); color: #fff; text-decoration: none; font-weight: 600; font-size: 15px; padding: 12px 24px; border-radius: 8px; border: none; cursor: pointer; transition: all 0.2s; gap: 8px; }
+        .btn:hover { background: var(--accent-glow); box-shadow: 0 0 20px rgba(59,130,246,0.4); }
+        .btn-copy { background: #1e293b; color: #e2e8f0; font-size: 13px; padding: 6px 14px; border: 1px solid #334155; border-radius: 6px; cursor: pointer; }
+        .btn-copy:hover { background: #334155; }
+        .options { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 24px; text-align: left; }
+        .option-box { background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+        .option-box h3 { font-size: 15px; margin: 0 0 6px; color: #fff; }
+        .option-box p { font-size: 13px; margin: 0; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="badge">LAN Dynamic Wallpaper • Workstation Setup</div>
+        <h1>Connect This Computer</h1>
+        <p>Run the 1-click command below in PowerShell, or download the batch file. No administrator privileges or passwords required.</p>
+        
+        <div class="code-box">
+            <span id="cmd-text">irm http://$hostIp`:$port/setup | iex</span>
+            <button class="btn-copy" onclick="copyCmd()">Copy</button>
+        </div>
+
+        <div style="display: flex; gap: 12px; justify-content: center;">
+            <a href="/2-Start-Client.bat" class="btn">⬇️ Download 2-Start-Client.bat</a>
+        </div>
+
+        <div class="options">
+            <div class="option-box">
+                <h3>Option 1: PowerShell</h3>
+                <p>Press <b>Win + R</b>, type <code>powershell</code>, paste the copied command, and press Enter.</p>
+            </div>
+            <div class="option-box">
+                <h3>Option 2: Batch File</h3>
+                <p>Download and double-click <code>2-Start-Client.bat</code>. It starts rotating wallpapers instantly.</p>
+            </div>
+        </div>
+    </div>
+    <script>
+        function copyCmd() {
+            var text = document.getElementById('cmd-text').innerText;
+            navigator.clipboard.writeText(text).then(function() {
+                alert('Copied! Now open PowerShell, paste, and press Enter.');
+            });
+        }
+    </script>
+</body>
+</html>
+"@
+                    $bytes = [System.Text.Encoding]::UTF8.GetBytes($html)
+                    $response.StatusCode = 200
+                    $response.ContentType = "text/html; charset=utf-8"
+                    $response.ContentLength64 = $bytes.Length
+                    $response.OutputStream.Write($bytes, 0, $bytes.Length)
+                    $response.OutputStream.Close()
+                    $response.Close()
+                    continue
+                }
+
+                # --------------------------------------------------------------
+                # ROUTE -0b: GET /2-Start-Client.bat (Direct Batch Download)
+                # --------------------------------------------------------------
+                if ($method -eq "GET" -and $path -eq "/2-Start-Client.bat") {
+                    $batPath = [System.IO.Path]::GetFullPath((Join-Path $scriptDir "../2-Start-Client.bat"))
+                    if (Test-Path -LiteralPath $batPath) {
+                        $bytes = [System.IO.File]::ReadAllBytes($batPath)
+                        $response.StatusCode = 200
+                        $response.ContentType = "application/x-bat"
+                        $response.Headers.Add("Content-Disposition", "attachment; filename=2-Start-Client.bat")
+                        $response.ContentLength64 = $bytes.Length
+                        $response.OutputStream.Write($bytes, 0, $bytes.Length)
+                        $response.OutputStream.Close()
+                        $response.Close()
+                        continue
+                    }
+                }
+
+                # --------------------------------------------------------------
                 # ROUTE 0: GET /setup (1-Click Client Provisioning Script for Lab PCs)
                 # --------------------------------------------------------------
                 if ($method -eq "GET" -and ($path -eq "/setup" -or $path -eq "/setup/")) {
