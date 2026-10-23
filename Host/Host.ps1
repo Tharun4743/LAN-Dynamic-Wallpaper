@@ -541,14 +541,15 @@ function Start-HostServer {
         Write-HostLog "FATAL: Failed to bind HTTP Server to LAN on port $port ($bindError)." -Level ERROR
         Write-Host ""
         Write-Host "==============================================================================" -ForegroundColor Red
-        Write-Host "  BINDING ERROR: Cannot bind HTTP Server to LAN address http://$hostIp`:$port/" -ForegroundColor Red
+        Write-Host "  BINDING ERROR: Cannot bind HTTP Server on port $port" -ForegroundColor Red
         Write-Host "==============================================================================" -ForegroundColor Red
-        Write-Host "  To enable LAN access, please perform one of the following:" -ForegroundColor Yellow
-        Write-Host "  1. Right-click Start-Host.bat and choose 'Run as administrator'" -ForegroundColor White
-        Write-Host "  2. Or reserve the URL ACL manually from an elevated command prompt:" -ForegroundColor White
-        Write-Host "     netsh http add urlacl url=http://+:$port/ user=Everyone" -ForegroundColor Cyan
+        Write-Host "  Possible causes:" -ForegroundColor Yellow
+        Write-Host "  1. Port $port is already in use by another application." -ForegroundColor White
+        Write-Host "     Check with: netstat -ano | findstr :$port" -ForegroundColor Cyan
+        Write-Host "  2. Windows Firewall is blocking the port." -ForegroundColor White
+        Write-Host "     Allow it with (run once as admin): netsh advfirewall firewall add rule name=""LAN-Wallpaper"" dir=in action=allow protocol=TCP localport=$port" -ForegroundColor Cyan
         Write-Host "==============================================================================" -ForegroundColor Red
-        throw "Failed to bind HttpListener to LAN interface on port ${port}: $bindError"
+        throw "Failed to bind HttpListener on port ${port}: $bindError"
     }
 
     Write-HostLog "HTTP Server listening for client connections on port $port" -Level INFO
