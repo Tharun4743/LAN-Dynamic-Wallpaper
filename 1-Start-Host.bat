@@ -67,7 +67,7 @@ netsh advfirewall firewall set rule group="Network Discovery" new enable=Yes >nu
 
 :: 4. Share folder across LAN for Everyone
 echo  [4/6] Creating Windows SMB Share 'LAN-Dynamic-Wallpaper'...
-net share LAN-Dynamic-Wallpaper="%SHARE_PATH%" /grant:Everyone,READ /users:100 >nul 2>&1
+net share LAN-Dynamic-Wallpaper="%SHARE_PATH%" /grant:Everyone,READ /users:unlimited >nul 2>&1
 
 :: 5. Recursively grant NTFS read & execute permissions to Everyone
 echo  [5/6] Granting Everyone read permissions on all client files...
