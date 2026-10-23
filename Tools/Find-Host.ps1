@@ -126,7 +126,7 @@ if ($foundHosts.Count -eq 0) {
                     $resp.Close()
 
                     $healthJson = $txt | ConvertFrom-Json
-                    if ($healthJson -and $healthJson.service -eq "LAN_WALLPAPER_HOST") {
+                    if ($healthJson -and ($healthJson.service -like "*WALLPAPER*HOST*" -or $healthJson.service -like "*Dynamic*Wallpaper*")) {
                         $foundHosts += [PSCustomObject]@{
                             service   = "LAN_WALLPAPER_HOST"
                             hostname  = if ($healthJson.PSObject.Properties['hostname']) { $healthJson.hostname } else { "Host-$rIp" }

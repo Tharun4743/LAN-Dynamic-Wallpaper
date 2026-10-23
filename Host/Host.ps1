@@ -122,30 +122,39 @@ function Write-HostLog {
 function Get-ActiveEthernetIp {
     <#
     .SYNOPSIS
-    Discovers the active Ethernet IPv4 address, prioritizing wired Ethernet adapters.
+    Discovers the active LAN/Wi-Fi IPv4 address, prioritizing the interface with the active default gateway.
     #>
     try {
+        # Priority 1: Default gateway IPv4 route (the active interface connected to LAN/Internet)
+        $gwRoute = Get-NetRoute -DestinationPrefix "0.0.0.0/0" -ErrorAction SilentlyContinue |
+            Where-Object { $_.NextHop -ne "0.0.0.0" } |
+            Sort-Object RouteMetric |
+            Select-Object -First 1
+
+        if ($null -ne $gwRoute) {
+            $gwIp = Get-NetIPAddress -InterfaceIndex $gwRoute.InterfaceIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+                Where-Object { $_.IPAddress -notlike "127.*" -and $_.IPAddress -notlike "169.254.*" } |
+                Select-Object -First 1
+            if ($null -ne $gwIp -and -not [string]::IsNullOrWhiteSpace($gwIp.IPAddress)) {
+                return $gwIp.IPAddress
+            }
+        }
+
+        # Priority 2: Any physical Wi-Fi or Ethernet adapter
         $adapters = Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
             Where-Object { $_.IPAddress -notlike "127.*" -and $_.IPAddress -notlike "169.254.*" }
 
-        # Prioritize wired Ethernet or local adapter with a default gateway
         $preferred = $adapters | Where-Object {
             $alias = (Get-NetAdapter -InterfaceIndex $_.InterfaceIndex -ErrorAction SilentlyContinue).InterfaceAlias
-            $alias -like "*Ethernet*" -or $alias -like "*vEthernet*" -or $alias -like "*LAN*"
+            $alias -like "*Wi-Fi*" -or $alias -like "*Ethernet*" -or $alias -like "*LAN*"
         } | Select-Object -First 1
 
         if ($null -ne $preferred) {
             return $preferred.IPAddress
         }
 
-        # Fallback to any valid non-loopback IPv4 with a default gateway
-        $fallback = Get-NetRoute -DestinationPrefix "0.0.0.0/0" -ErrorAction SilentlyContinue |
-            ForEach-Object { Get-NetIPAddress -InterfaceIndex $_.InterfaceIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue } |
-            Where-Object { $_.IPAddress -notlike "127.*" } |
-            Select-Object -First 1
-
-        if ($null -ne $fallback) {
-            return $fallback.IPAddress
+        if ($adapters -and $adapters.Count -gt 0) {
+            return ($adapters | Select-Object -First 1).IPAddress
         }
 
         # Ultimate fallback
@@ -465,11 +474,15 @@ function Start-HostServer {
     Write-Host "     $([System.IO.Path]::GetFullPath($wallpapersDir))" -ForegroundColor Cyan
     Write-Host "------------------------------------------------------------------------------" -ForegroundColor DarkGray
     Write-Host "  [FORMATS]  Supported : JPG, PNG, BMP, GIF, WEBP, HEIC, TIFF, MP4, MOV, WMV" -ForegroundColor White
-    Write-Host "  [TIMER]    Slideshow : $defaultInterval SECONDS (Rotates Host & Clients every ${defaultInterval}s)" -ForegroundColor Yellow
+    Write-Host "  [TIMER]    Slideshow : $defaultInterval SECONDS (Exact-second sync on all PCs)" -ForegroundColor Yellow
     Write-Host "  [CAPACITY] Max Fleet : Up to 10,000 photos (100 MB per file limit)" -ForegroundColor White
     Write-Host "  [NETWORK]  Host IPv4 : $hostIp (HTTP: $port | UDP Discovery: $discPort)" -ForegroundColor Cyan
-    Write-Host "  [SECURITY] Client Token: $(if ($authSecret) { $authSecret } else { '[None - Open Access]' })" -ForegroundColor Yellow
     Write-Host "  [PUBLISHED] Active   : $(if ($initialManifest) { $initialManifest.totalImages } else { 0 }) assets ready on LAN" -ForegroundColor Green
+    Write-Host "------------------------------------------------------------------------------" -ForegroundColor DarkGray
+    Write-Host "  [HOW TO CONNECT CLIENT WORKSTATIONS OVER LAN]:" -ForegroundColor White
+    Write-Host "  Option A: On any client PC, double-click 'Start-Client.bat' (or '2-Start-Client.bat')" -ForegroundColor Cyan
+    Write-Host "  Option B: Or open PowerShell on any client PC and run 1-click command:" -ForegroundColor Cyan
+    Write-Host "            irm http://$hostIp`:$port/setup | iex" -ForegroundColor Yellow
     Write-Host "==============================================================================" -ForegroundColor Green
     Write-Host ""
 
@@ -542,9 +555,8 @@ function Start-HostServer {
 
     $lastReconciliation = [DateTime]::UtcNow
     $lastRegistrySave = [DateTime]::UtcNow
-    $lastSlideshowStep = [DateTime]::UtcNow
+    $currentHostWallpaper = ""
     $localImageFiles = New-Object System.Collections.Generic.List[string]
-    $localImageIndex = [ref]0
 
     $refreshHostSlideshow = {
         $localImageFiles.Clear()
@@ -563,9 +575,11 @@ function Start-HostServer {
         try {
             & $refreshHostSlideshow
             if ($localImageFiles.Count -gt 0) {
-                $applied = Set-DesktopWallpaper -ImagePath $localImageFiles[0]
-                if ($applied) {
-                    Write-HostLog "Host desktop wallpaper initialized to: $([System.IO.Path]::GetFileName($localImageFiles[0]))" -Level INFO
+                $syncObj = Get-SynchronizedWallpaper -ImageFiles $localImageFiles -IntervalSeconds $defaultInterval
+                if ($null -ne $syncObj) {
+                    $currentHostWallpaper = $syncObj.Path
+                    Set-DesktopWallpaper -ImagePath $syncObj.Path | Out-Null
+                    Write-HostLog "Host desktop wallpaper synchronized to: $([System.IO.Path]::GetFileName($syncObj.Path))" -Level INFO
                 }
             }
         } catch {}
@@ -581,23 +595,23 @@ function Start-HostServer {
 
                 $now = [DateTime]::UtcNow
 
-                # Periodic fallback reconciliation (every 20 seconds)
-                if (($now - $lastReconciliation).TotalSeconds -ge 20) {
+                # Ultra-fast fallback reconciliation (every 2 seconds) so changes in Wallpapers folder update dynamically without stopping server
+                if (($now - $lastReconciliation).TotalSeconds -ge 2) {
                     $lastReconciliation = $now
                     Sync-WallpaperCollection -SourceDir $wallpapersDir -TargetDir $publishedDir `
                         -MaxSizeBytes $maxImageBytes -AllowedExts $allowedExts -SlideshowInterval $defaultInterval | Out-Null
                 }
 
-                # Host desktop wallpaper rotation (advances every $defaultInterval seconds)
-                if (-not $NoLocalSlideshow -and ([System.Management.Automation.PSTypeName]'Win32WallpaperEngine').Type -and
-                    ($now - $lastSlideshowStep).TotalSeconds -ge $defaultInterval) {
-                    $lastSlideshowStep = $now
+                # Host desktop wallpaper exact-second synchronized rotation (matches all clients simultaneously)
+                if (-not $NoLocalSlideshow -and ([System.Management.Automation.PSTypeName]'Win32WallpaperEngine').Type) {
                     try {
                         & $refreshHostSlideshow
                         if ($localImageFiles.Count -gt 0) {
-                            $rotatedPath = Step-WallpaperRotation -ImageFiles $localImageFiles -CurrentIndex $localImageIndex
-                            if ($rotatedPath) {
-                                Write-HostLog "Host desktop wallpaper rotated to: $([System.IO.Path]::GetFileName($rotatedPath))" -Level INFO
+                            $syncObj = Get-SynchronizedWallpaper -ImageFiles $localImageFiles -IntervalSeconds $defaultInterval
+                            if ($null -ne $syncObj -and $syncObj.Path -ne $currentHostWallpaper) {
+                                $currentHostWallpaper = $syncObj.Path
+                                Set-DesktopWallpaper -ImagePath $syncObj.Path | Out-Null
+                                Write-HostLog "Host desktop wallpaper synchronized to: $([System.IO.Path]::GetFileName($syncObj.Path)) (Index: $($syncObj.Index + 1)/$($localImageFiles.Count))" -Level INFO
                             }
                         }
                     } catch {}
@@ -621,6 +635,81 @@ function Start-HostServer {
 
             # Execute request handler in isolated block
             try {
+                # --------------------------------------------------------------
+                # ROUTE 0: GET /setup (1-Click Client Provisioning Script for Lab PCs)
+                # --------------------------------------------------------------
+                if ($method -eq "GET" -and ($path -eq "/setup" -or $path -eq "/setup/")) {
+                    $bootstrapScript = @"
+# LAN Dynamic Wallpaper - 1-Click Client Setup
+`$ErrorActionPreference = 'Stop'
+Write-Host ""
+Write-Host "==============================================================================" -ForegroundColor Green
+Write-Host " LAN DYNAMIC WALLPAPER - CLIENT WORKSTATION SETUP" -ForegroundColor Green
+Write-Host "==============================================================================" -ForegroundColor Green
+Write-Host " Connecting to Host at http://$hostIp`:$port ..." -ForegroundColor Cyan
+
+`$clientDir = Join-Path `$env:LOCALAPPDATA 'LAN-Dynamic-Wallpaper-Client'
+if (-not (Test-Path -LiteralPath `$clientDir)) {
+    New-Item -ItemType Directory -Path `$clientDir -Force | Out-Null
+}
+
+`$files = @('Client.ps1', 'Wallpaper.ps1', 'ClientConfig.json')
+foreach (`$f in `$files) {
+    `$url = "http://$hostIp`:$port/client/`$f"
+    `$dest = Join-Path `$clientDir `$f
+    Write-Host " Downloading `$f ..." -ForegroundColor Gray
+    Invoke-WebRequest -Uri `$url -OutFile `$dest -UseBasicParsing
+}
+
+Write-Host " [SUCCESS] Client files installed to: `$clientDir" -ForegroundColor Green
+Write-Host " [STARTING] Launching Client Slideshow Agent in background..." -ForegroundColor Green
+Write-Host "==============================================================================" -ForegroundColor Green
+Write-Host ""
+
+Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"`$clientDir\Client.ps1`""
+"@
+                    $bytes = [System.Text.Encoding]::UTF8.GetBytes($bootstrapScript)
+                    $response.StatusCode = 200
+                    $response.ContentType = "text/plain; charset=utf-8"
+                    $response.ContentLength64 = $bytes.Length
+                    $response.OutputStream.Write($bytes, 0, $bytes.Length)
+                    $response.OutputStream.Close()
+                    $response.Close()
+                    continue
+                }
+
+                # --------------------------------------------------------------
+                # ROUTE 0b: GET /client/{filename} (Client Provisioning Assets)
+                # --------------------------------------------------------------
+                if ($method -eq "GET" -and $path.StartsWith("/client/")) {
+                    $rawFileName = [System.Uri]::UnescapeDataString($path.Substring("/client/".Length)).Trim()
+                    if ($rawFileName -in @("Client.ps1", "Wallpaper.ps1", "ClientConfig.json")) {
+                        $clientSrcPath = [System.IO.Path]::GetFullPath((Join-Path $scriptDir "../Client/$rawFileName"))
+                        if (Test-Path -LiteralPath $clientSrcPath) {
+                            $fileText = [System.IO.File]::ReadAllText($clientSrcPath, [System.Text.Encoding]::UTF8)
+                            if ($rawFileName -eq "ClientConfig.json") {
+                                try {
+                                    $cc = $fileText | ConvertFrom-Json
+                                    $cc.Connection.HostAddress = $hostIp
+                                    $cc.Connection.HostPort = $port
+                                    $cc.Slideshow.IntervalSeconds = $defaultInterval
+                                    $fileText = $cc | ConvertTo-Json -Depth 5
+                                } catch {}
+                            }
+                            $bytes = [System.Text.Encoding]::UTF8.GetBytes($fileText)
+                            $response.StatusCode = 200
+                            $response.ContentType = "text/plain; charset=utf-8"
+                            $response.ContentLength64 = $bytes.Length
+                            $response.OutputStream.Write($bytes, 0, $bytes.Length)
+                            $response.OutputStream.Close()
+                            $response.Close()
+                            continue
+                        }
+                    }
+                    Send-JsonResponse -Response $response -StatusCode 404 -Data @{ error = "File not found" }
+                    continue
+                }
+
                 # --------------------------------------------------------------
                 # ROUTE 1: GET /api/v1/health (Public / Monitoring)
                 # --------------------------------------------------------------
@@ -654,7 +743,7 @@ function Start-HostServer {
                 # --------------------------------------------------------------
                 if ($method -eq "POST" -and $path -eq "/api/v1/auth/register") {
                     $token = Get-RequestAuthToken -Request $request
-                    $isLanClient = ($clientIp -like "192.168.*" -or $clientIp -like "10.*" -or $clientIp -like "172.1[6-9].*" -or $clientIp -like "172.2[0-9].*" -or $clientIp -like "172.3[0-1].*" -or $clientIp -eq "127.0.0.1" -or $clientIp -eq "::1")
+                    $isLanClient = ($clientIp -like "192.168.*" -or $clientIp -like "10.*" -or $clientIp -like "172.1[6-9].*" -or $clientIp -like "172.2[0-9].*" -or $clientIp -like "172.3[0-1].*" -or $clientIp -eq "127.0.0.1" -or $clientIp -eq "::1" -or $clientIp -like "fe80:*")
                     $autoEnroll = if ($null -ne $cfg.Security.PSObject.Properties['AutoEnrollLanClients']) { [bool]$cfg.Security.AutoEnrollLanClients } else { $true }
 
                     $authAuthorized = $false

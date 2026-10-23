@@ -32,10 +32,13 @@ if (-not (Test-Path variable:IsImportedModule) -or -not $IsImportedModule) {
 }
 
 # Global watcher state
-$script:Watcher = $null
-$script:LastSyncTime = [DateTime]::MinValue
-$script:DebounceTimer = $null
-$script:SyncLock = New-Object System.Object
+$script:Watcher           = $null
+$script:WatcherRunspace   = $null
+$script:WatcherPowerShell = $null
+$script:WatcherHandle     = $null
+$script:LastSyncTime      = [DateTime]::MinValue
+$script:DebounceTimer     = $null
+$script:SyncLock          = New-Object System.Object
 
 # Preload WPF and System.Drawing assemblies for image/video format transcoding
 try {
@@ -557,7 +560,9 @@ function Sync-WallpaperCollection {
 function Start-WallpaperWatcher {
     <#
     .SYNOPSIS
-    Starts a background FileSystemWatcher on the Wallpapers directory with debounced event handling.
+    Starts a background runspace that polls the Wallpapers directory every 1.5 seconds
+    and triggers Sync-WallpaperCollection on any file change.
+    Uses a dedicated PowerShell runspace so $script: scope is correctly captured via closure.
     #>
     [CmdletBinding()]
     param(
@@ -565,8 +570,7 @@ function Start-WallpaperWatcher {
         [string]$TargetDir,
         [long]$MaxSizeBytes = 26214400,
         [string[]]$AllowedExts = @(".jpg", ".jpeg", ".png", ".bmp"),
-        [int]$SlideshowInterval = 60,
-        [int]$DebounceMilliseconds = 1500
+        [int]$SlideshowInterval = 60
     )
 
     if ([string]::IsNullOrWhiteSpace($SourceDir)) {
@@ -582,41 +586,122 @@ function Start-WallpaperWatcher {
 
     Stop-WallpaperWatcher
 
-    $fsw = New-Object System.IO.FileSystemWatcher
-    $fsw.Path = $SourceDir
-    $fsw.IncludeSubdirectories = $false
-    $fsw.EnableRaisingEvents = $true
-    $fsw.NotifyFilter = [System.IO.NotifyFilters]'FileName, LastWrite, Size, CreationTime'
+    # Capture all parameters as local variables to embed in the runspace script block
+    $capturedSourceDir      = $SourceDir
+    $capturedTargetDir      = $TargetDir
+    $capturedMaxSizeBytes   = $MaxSizeBytes
+    $capturedAllowedExts    = $AllowedExts
+    $capturedInterval       = $SlideshowInterval
+    $capturedPublisherPath  = Join-Path $PSScriptRoot "Publisher.ps1"
 
-    $action = {
-        param($source, $eventArgs)
-        # Prevent self-trigger loop in single-folder mode on manifest updates or temporary files
-        if ($eventArgs.Name -eq "manifest.json" -or $eventArgs.Name.EndsWith(".pubtmp") -or $eventArgs.Name.EndsWith(".tmp")) {
-            return
+    $watcherScript = {
+        param($SourceDir, $TargetDir, $MaxSizeBytes, $AllowedExts, $SlideshowInterval, $PublisherPath)
+
+        # Dot-source the Publisher engine inside this runspace
+        $IsImportedModule = $true
+        . $PublisherPath -ConfigPath ""
+
+        $lastSnapshot = @{}
+
+        # Build initial snapshot of source directory
+        function Get-DirSnapshot {
+            param([string]$Dir)
+            $snap = @{}
+            if (Test-Path -LiteralPath $Dir) {
+                Get-ChildItem -LiteralPath $Dir -File | ForEach-Object {
+                    $snap[$_.Name] = $_.LastWriteTimeUtc.Ticks.ToString() + "-" + $_.Length.ToString()
+                }
+            }
+            return $snap
         }
-        $now = [DateTime]::UtcNow
-        # Simple debounce threshold
-        if (($now - $script:LastSyncTime).TotalMilliseconds -gt 1000) {
-            Start-Sleep -Milliseconds 500
-            Sync-WallpaperCollection -SourceDir $using:SourceDir -TargetDir $using:TargetDir `
-                -MaxSizeBytes $using:MaxSizeBytes -AllowedExts $using:AllowedExts -SlideshowInterval $using:SlideshowInterval | Out-Null
+
+        $lastSnapshot = Get-DirSnapshot -Dir $SourceDir
+
+        while ($true) {
+            Start-Sleep -Milliseconds 1500
+            try {
+                $currentSnapshot = Get-DirSnapshot -Dir $SourceDir
+
+                $changed = $false
+                # Check for added/modified files
+                foreach ($key in $currentSnapshot.Keys) {
+                    if (-not $lastSnapshot.ContainsKey($key) -or $lastSnapshot[$key] -ne $currentSnapshot[$key]) {
+                        # Skip internal files
+                        $lk = $key.ToLowerInvariant()
+                        if ($lk -ne "manifest.json" -and -not $lk.EndsWith(".pubtmp") -and -not $lk.EndsWith(".tmp") -and -not $lk.EndsWith(".clttmp")) {
+                            $changed = $true
+                            break
+                        }
+                    }
+                }
+                # Check for deleted files
+                if (-not $changed) {
+                    foreach ($key in $lastSnapshot.Keys) {
+                        if (-not $currentSnapshot.ContainsKey($key)) {
+                            $lk = $key.ToLowerInvariant()
+                            if ($lk -ne "manifest.json" -and -not $lk.EndsWith(".pubtmp") -and -not $lk.EndsWith(".tmp")) {
+                                $changed = $true
+                                break
+                            }
+                        }
+                    }
+                }
+
+                if ($changed) {
+                    $lastSnapshot = $currentSnapshot
+                    Start-Sleep -Milliseconds 300  # brief settle delay
+                    Sync-WallpaperCollection -SourceDir $SourceDir -TargetDir $TargetDir `
+                        -MaxSizeBytes $MaxSizeBytes -AllowedExts $AllowedExts -SlideshowInterval $SlideshowInterval | Out-Null
+                }
+                else {
+                    $lastSnapshot = $currentSnapshot
+                }
+            } catch {
+                # Swallow errors to keep watcher alive
+            }
         }
     }
 
-    Register-ObjectEvent $fsw -EventName Created -SourceIdentifier "FSW_Wallpaper_Created" -Action $action | Out-Null
-    Register-ObjectEvent $fsw -EventName Changed -SourceIdentifier "FSW_Wallpaper_Changed" -Action $action | Out-Null
-    Register-ObjectEvent $fsw -EventName Deleted -SourceIdentifier "FSW_Wallpaper_Deleted" -Action $action | Out-Null
-    Register-ObjectEvent $fsw -EventName Renamed -SourceIdentifier "FSW_Wallpaper_Renamed" -Action $action | Out-Null
+    $runspace = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace()
+    $runspace.Open()
+    $ps = [System.Management.Automation.PowerShell]::Create()
+    $ps.Runspace = $runspace
+    [void]$ps.AddScript($watcherScript)
+    [void]$ps.AddArgument($capturedSourceDir)
+    [void]$ps.AddArgument($capturedTargetDir)
+    [void]$ps.AddArgument($capturedMaxSizeBytes)
+    [void]$ps.AddArgument($capturedAllowedExts)
+    [void]$ps.AddArgument($capturedInterval)
+    [void]$ps.AddArgument($capturedPublisherPath)
 
-    $script:Watcher = $fsw
-    Write-Verbose "FileSystemWatcher successfully attached to $SourceDir"
+    $handle = $ps.BeginInvoke()
+
+    $script:WatcherRunspace  = $runspace
+    $script:WatcherPowerShell = $ps
+    $script:WatcherHandle    = $handle
+    $script:Watcher          = $null  # No FSW object in runspace model
+
+    Write-Verbose "Background polling watcher started for: $capturedSourceDir"
 }
 
 function Stop-WallpaperWatcher {
     <#
     .SYNOPSIS
-    Stops and unregisters the background FileSystemWatcher.
+    Stops and cleans up the background polling watcher runspace.
     #>
+    if ($null -ne $script:WatcherPowerShell) {
+        try { $script:WatcherPowerShell.Stop() } catch {}
+        try { $script:WatcherPowerShell.Dispose() } catch {}
+        $script:WatcherPowerShell = $null
+    }
+    if ($null -ne $script:WatcherRunspace) {
+        try { $script:WatcherRunspace.Close() } catch {}
+        try { $script:WatcherRunspace.Dispose() } catch {}
+        $script:WatcherRunspace = $null
+    }
+    $script:WatcherHandle = $null
+
+    # Also clean up any legacy FSW event subscriptions from older versions
     $events = @("FSW_Wallpaper_Created", "FSW_Wallpaper_Changed", "FSW_Wallpaper_Deleted", "FSW_Wallpaper_Renamed")
     foreach ($evt in $events) {
         $sub = Get-EventSubscriber -SourceIdentifier $evt -ErrorAction SilentlyContinue
@@ -626,11 +711,12 @@ function Stop-WallpaperWatcher {
     }
 
     if ($null -ne $script:Watcher) {
-        $script:Watcher.EnableRaisingEvents = $false
-        $script:Watcher.Dispose()
+        try { $script:Watcher.EnableRaisingEvents = $false } catch {}
+        try { $script:Watcher.Dispose() } catch {}
         $script:Watcher = $null
-        Write-Verbose "FileSystemWatcher detached and disposed."
     }
+
+    Write-Verbose "Watcher stopped and disposed."
 }
 
 # If executed directly as a script (not dot-sourced)

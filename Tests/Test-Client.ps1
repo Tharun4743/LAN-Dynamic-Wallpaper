@@ -140,6 +140,18 @@ try {
     $m2.Dispose()
     $m1.ReleaseMutex()
     $m1.Dispose()
+
+    # TEST 6: Exact-Second Fleet Synchronization
+    Write-Host "`n-- Section 6: Exact-Second Fleet Clock Synchronization --" -ForegroundColor White
+    $syncTestList = New-Object System.Collections.Generic.List[string]
+    $syncTestList.Add($img1)
+    $syncTestList.Add($img3)
+    $syncResult1 = Get-SynchronizedWallpaper -ImageFiles $syncTestList -IntervalSeconds 5
+    Assert-Condition "Get-SynchronizedWallpaper returns valid object" ($null -ne $syncResult1)
+    Assert-Condition "Synchronized index is bounded by collection count" ($syncResult1.Index -ge 0 -and $syncResult1.Index -lt $syncTestList.Count)
+    Assert-Condition "Seconds remaining is positive and within interval" ($syncResult1.SecondsRemaining -ge 1 -and $syncResult1.SecondsRemaining -le 5)
+    $syncResult2 = Get-SynchronizedWallpaper -ImageFiles $syncTestList -IntervalSeconds 5
+    Assert-Condition "Deterministic clock synchronization across parallel nodes" ($syncResult1.Index -eq $syncResult2.Index -and $syncResult1.Path -eq $syncResult2.Path)
 }
 finally {
     if (Test-Path -LiteralPath $testSandbox) {

@@ -10,6 +10,9 @@ param(
     [string]$ConfigPath = "",
 
     [Parameter(Mandatory = $false)]
+    [string]$HostAddress = "",
+
+    [Parameter(Mandatory = $false)]
     [switch]$RunOnce,
 
     [Parameter(Mandatory = $false)]
@@ -251,7 +254,16 @@ function Discover-HostOnLan {
                 $tasks.Add([PSCustomObject]@{ Ip = $targetIp; Tcp = $tcp; Iar = $iar })
             }
 
-            Start-Sleep -Milliseconds 400
+            # Wait up to 1000ms in adaptive intervals for TCP connections to establish
+            $sw = [System.Diagnostics.Stopwatch]::StartNew()
+            while ($sw.ElapsedMilliseconds -lt 1000) {
+                $anyFinished = $false
+                foreach ($t in $tasks) {
+                    if ($t.Iar.IsCompleted) { $anyFinished = $true; break }
+                }
+                if ($anyFinished -and $sw.ElapsedMilliseconds -gt 350) { break }
+                Start-Sleep -Milliseconds 100
+            }
 
             $responsiveIps = New-Object System.Collections.Generic.List[string]
             foreach ($t in $tasks) {
@@ -277,7 +289,7 @@ function Discover-HostOnLan {
                     $resp.Close()
 
                     $healthJson = $txt | ConvertFrom-Json
-                    if ($healthJson -and $healthJson.service -eq "LAN_WALLPAPER_HOST") {
+                    if ($healthJson -and ($healthJson.service -like "*WALLPAPER*HOST*" -or $healthJson.service -like "*Dynamic*Wallpaper*")) {
                         Write-ClientLog "Discovered Host PC via subnet sweep at $rIp`:8765" -Level INFO
                         return [PSCustomObject]@{
                             service  = "LAN_WALLPAPER_HOST"
@@ -396,8 +408,8 @@ function Register-ClientNode {
     param(
         [string]$BaseUrl,
         [string]$AuthSecret,
-        [ref]$ClientId,
-        [ref]$ClientToken = $null
+        $ClientId = $null,
+        $ClientToken = $null
     )
 
     $regUri = "$BaseUrl/api/v1/auth/register"
@@ -411,16 +423,23 @@ function Register-ClientNode {
     $res = Invoke-ClientHttpRequest -Uri $regUri -Method "POST" -AuthToken $AuthSecret -Body $payload
     if ($res.StatusCode -eq 200 -and $res.Content) {
         $data = $res.Content | ConvertFrom-Json
-        $ClientId.Value = $data.clientId
-        if ($null -ne $ClientToken -and $data.PSObject.Properties['clientToken'] -and -not [string]::IsNullOrWhiteSpace($data.clientToken)) {
+        if ($null -ne $ClientId -and $ClientId -is [System.Management.Automation.PSReference]) {
+            $ClientId.Value = $data.clientId
+        }
+        if ($null -ne $ClientToken -and $ClientToken -is [System.Management.Automation.PSReference] -and $data.PSObject.Properties['clientToken'] -and -not [string]::IsNullOrWhiteSpace($data.clientToken)) {
             $ClientToken.Value = $data.clientToken
         }
         Write-ClientLog "Client registration confirmed. Assigned Client ID: $($data.clientId)" -Level INFO
-        return $true
+        return [PSCustomObject]@{
+            Success     = $true
+            ClientId    = $data.clientId
+            ClientToken = (if ($data.PSObject.Properties['clientToken']) { $data.clientToken } else { "" })
+            Interval    = (if ($data.PSObject.Properties['slideshowInterval']) { $data.slideshowInterval } else { 5 })
+        }
     }
     else {
         Write-ClientLog "Registration failed (HTTP $($res.StatusCode)): $($res.Error)" -Level WARN
-        return $false
+        return [PSCustomObject]@{ Success = $false; Error = $res.Error; StatusCode = $res.StatusCode }
     }
 }
 
@@ -434,7 +453,7 @@ function Sync-ClientCollection {
         [string]$BaseUrl,
         [string]$AuthSecret,
         [string]$CacheDir,
-        [ref]$ClientId
+        $ClientId = ""
     )
 
     $manifestUri = "$BaseUrl/api/v1/manifest"
@@ -547,7 +566,7 @@ function Refresh-LocalCollectionList {
     $list = New-Object System.Collections.Generic.List[string]
     if (Test-Path -LiteralPath $CacheDir) {
         $files = Get-ChildItem -LiteralPath $CacheDir -File |
-            Where-Object { $_.Extension.ToLowerInvariant() -in @(".jpg", ".jpeg", ".png", ".bmp") } |
+            Where-Object { $_.Extension.ToLowerInvariant() -in @(".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".tiff", ".tif") } |
             Sort-Object -Property Name
 
         foreach ($f in $files) {
@@ -583,7 +602,8 @@ function Send-ClientHeartbeat {
 function Start-ClientAgent {
     [CmdletBinding()]
     param(
-        [string]$Path = $script:ConfigPath
+        [string]$Path = $script:ConfigPath,
+        [string]$HostOverride = ""
     )
 
     $cfg = Get-ClientConfig -Path $Path
@@ -629,22 +649,27 @@ function Start-ClientAgent {
     } catch {}
 
     $clientId = $cfg.Security.ClientId
-    $hostIp = $cfg.Connection.HostAddress
+    $hostIp = if (-not [string]::IsNullOrWhiteSpace($HostOverride)) { $HostOverride.Trim() } else { $cfg.Connection.HostAddress }
     $hostPort = $cfg.Connection.HostPort
     $discPort = $cfg.Connection.DiscoveryPort
     $enableDisc = $cfg.Connection.EnableDiscovery
-    $pollInterval = $cfg.Connection.PollIntervalSeconds
-    $slideshowInterval = $cfg.Slideshow.IntervalSeconds
+    $pollInterval = if ($cfg.Connection.PollIntervalSeconds -gt 0) { $cfg.Connection.PollIntervalSeconds } else { 3 }
+    $slideshowInterval = if ($cfg.Slideshow.IntervalSeconds -gt 0) { $cfg.Slideshow.IntervalSeconds } else { 5 }
     $maxBackoff = $cfg.Connection.MaxBackoffSeconds
+
+    if (-not [string]::IsNullOrWhiteSpace($HostOverride)) {
+        $cfg.Connection.HostAddress = $hostIp
+        Save-ClientConfig -Path $ConfigPath -ConfigObj $cfg
+    }
 
     Write-Host ""
     Write-Host "==============================================================================" -ForegroundColor Green
-    Write-Host " LAN DYNAMIC WALLPAPER SLIDESHOW - CLIENT AGENT" -ForegroundColor Green
+    Write-Host " LAN DYNAMIC WALLPAPER SLIDESHOW - CLIENT WORKSTATION" -ForegroundColor Green
     Write-Host "==============================================================================" -ForegroundColor Green
-    Write-Host " Configured Host IP       : $(if ($hostIp) { $hostIp } else { '[Auto-Discovery]' })" -ForegroundColor Cyan
+    Write-Host " Configured Host IP       : $(if ($hostIp) { $hostIp } else { '[Auto-Discovery Active]' })" -ForegroundColor Cyan
     Write-Host " HTTP Service Port        : $hostPort" -ForegroundColor Cyan
-    Write-Host " Slideshow Interval       : $slideshowInterval seconds" -ForegroundColor Cyan
-    Write-Host " Manifest Poll Interval   : $pollInterval seconds" -ForegroundColor Cyan
+    Write-Host " Slideshow Timer          : $slideshowInterval seconds (Exact-second synchronization)" -ForegroundColor Yellow
+    Write-Host " Collection Poll Rate     : Dynamic 2s live sync" -ForegroundColor Cyan
     Write-Host " Local Image Cache        : $cacheDir" -ForegroundColor DarkGray
     Write-Host "==============================================================================" -ForegroundColor Green
     Write-Host ""
@@ -661,43 +686,48 @@ function Start-ClientAgent {
     }
 
     if ([string]::IsNullOrWhiteSpace($hostIp)) {
-        Write-ClientLog "Host IP is not configured and discovery did not locate a host. Retaining offline mode." -Level WARN
+        Write-ClientLog "Host IP not yet found. Retaining local cache offline mode until Host is detected on LAN." -Level WARN
     }
 
     # Initialize local collection from cache
     $script:LocalCollection = Refresh-LocalCollectionList -CacheDir $cacheDir
     Write-ClientLog "Initial cache loaded: $($script:LocalCollection.Count) valid images ready." -Level INFO
 
-    # If cache has images, set initial wallpaper immediately
+    $currentAppliedWallpaper = ""
+
+    # If cache has images, set initial synchronized wallpaper immediately
     if ($script:LocalCollection.Count -gt 0) {
-        $currentImg = Step-WallpaperRotation -ImageFiles $script:LocalCollection -CurrentIndex ([ref]$script:CurrentIndex)
-        if ($null -ne $currentImg) {
-            $script:CurrentWallpaperHash = Get-FileSha256Checksum -FilePath $currentImg
-            Write-ClientLog "Initial wallpaper established: $(Split-Path $currentImg -Leaf)" -Level INFO
+        $syncObj = Get-SynchronizedWallpaper -ImageFiles $script:LocalCollection -IntervalSeconds $slideshowInterval
+        if ($null -ne $syncObj) {
+            $currentAppliedWallpaper = $syncObj.Path
+            $script:CurrentIndex = $syncObj.Index
+            Set-DesktopWallpaper -ImagePath $syncObj.Path | Out-Null
+            $script:CurrentWallpaperHash = Get-FileSha256Checksum -FilePath $syncObj.Path
+            Write-ClientLog "Initial synchronized wallpaper established: $(Split-Path $syncObj.Path -Leaf)" -Level INFO
         }
     }
 
     if ($RunOnce) {
         if (-not [string]::IsNullOrWhiteSpace($hostIp)) {
             $baseUrl = "http://$hostIp`:$hostPort"
-            $refId = [ref]$clientId
-            $refToken = [ref]$authSecret
-            Register-ClientNode -BaseUrl $baseUrl -AuthSecret $authSecret -ClientId $refId -ClientToken $refToken | Out-Null
-            if ($refToken.Value -ne $authSecret) {
-                $authSecret = $refToken.Value
+            $regRes = Register-ClientNode -BaseUrl $baseUrl -AuthSecret $authSecret
+            if ($regRes.Success) {
+                $authSecret = $regRes.ClientToken
                 $cfg.Security.AuthSecret = $authSecret
+                $cfg.Security.ClientId = $regRes.ClientId
+                Save-ClientConfig -Path $ConfigPath -ConfigObj $cfg
             }
-            Sync-ClientCollection -BaseUrl $baseUrl -AuthSecret $authSecret -CacheDir $cacheDir -ClientId $refId | Out-Null
+            Sync-ClientCollection -BaseUrl $baseUrl -AuthSecret $authSecret -CacheDir $cacheDir -ClientId $clientId | Out-Null
             $script:LocalCollection = Refresh-LocalCollectionList -CacheDir $cacheDir
             if ($script:LocalCollection.Count -gt 0) {
-                Step-WallpaperRotation -ImageFiles $script:LocalCollection -CurrentIndex ([ref]$script:CurrentIndex) | Out-Null
+                $syncObj = Get-SynchronizedWallpaper -ImageFiles $script:LocalCollection -IntervalSeconds $slideshowInterval
+                if ($syncObj) { Set-DesktopWallpaper -ImagePath $syncObj.Path | Out-Null }
             }
         }
         return
     }
 
     $lastManifestPoll = [DateTime]::MinValue
-    $lastSlideshowTick = [DateTime]::UtcNow
     $lastHeartbeat = [DateTime]::MinValue
 
     try {
@@ -705,29 +735,26 @@ function Start-ClientAgent {
             $now = [DateTime]::UtcNow
 
             # ------------------------------------------------------------------
-            # 1. Slideshow Rotation Loop
+            # 1. Exact-Second Synchronized Desktop Wallpaper Rotation
             # ------------------------------------------------------------------
-            if (($now - $lastSlideshowTick).TotalSeconds -ge $slideshowInterval) {
-                $lastSlideshowTick = $now
-                if ($script:LocalCollection.Count -gt 0) {
-                    $nextImg = Step-WallpaperRotation -ImageFiles $script:LocalCollection -CurrentIndex ([ref]$script:CurrentIndex)
-                    if ($null -ne $nextImg) {
-                        $script:CurrentWallpaperHash = Get-FileSha256Checksum -FilePath $nextImg
-                        Write-ClientLog "Slideshow rotated: $(Split-Path $nextImg -Leaf) (Index: $($script:CurrentIndex + 1)/$($script:LocalCollection.Count))" -Level INFO
-                    }
-                }
-                else {
-                    Write-ClientLog "No cached wallpapers available to rotate." -Level DEBUG
+            if ($script:LocalCollection.Count -gt 0) {
+                $syncObj = Get-SynchronizedWallpaper -ImageFiles $script:LocalCollection -IntervalSeconds $slideshowInterval
+                if ($null -ne $syncObj -and $syncObj.Path -ne $currentAppliedWallpaper) {
+                    $currentAppliedWallpaper = $syncObj.Path
+                    $script:CurrentIndex = $syncObj.Index
+                    Set-DesktopWallpaper -ImagePath $syncObj.Path | Out-Null
+                    $script:CurrentWallpaperHash = Get-FileSha256Checksum -FilePath $syncObj.Path
+                    Write-ClientLog "Slideshow synchronized: $(Split-Path $syncObj.Path -Leaf) (Index: $($syncObj.Index + 1)/$($script:LocalCollection.Count))" -Level INFO
                 }
             }
 
             # ------------------------------------------------------------------
-            # 2. Manifest Synchronization Loop (with Exponential Backoff)
+            # 2. Dynamic Live Manifest Sync Loop (checks every 2 seconds)
             # ------------------------------------------------------------------
-            $effectivePollInterval = $pollInterval
-            if ($script:ConsecutiveFailures -gt 0) {
-                # Exponential backoff: 2s, 4s, 8s, 16s... capped at $maxBackoff
-                $effectivePollInterval = [Math]::Min($maxBackoff, [Math]::Pow(2, $script:ConsecutiveFailures))
+            $effectivePollInterval = if ($script:ConsecutiveFailures -gt 0) {
+                [Math]::Min(15, [Math]::Pow(2, $script:ConsecutiveFailures))
+            } else {
+                2
             }
 
             if (($now - $lastManifestPoll).TotalSeconds -ge $effectivePollInterval) {
@@ -741,37 +768,52 @@ function Start-ClientAgent {
                         $hostPort = $disc.port
                         $cfg.Connection.HostAddress = $hostIp
                         Save-ClientConfig -Path $ConfigPath -ConfigObj $cfg
+                        Write-ClientLog "Host discovered at $hostIp`:$hostPort" -Level INFO
                     }
                 }
 
                 if (-not [string]::IsNullOrWhiteSpace($hostIp)) {
                     $baseUrl = "http://$hostIp`:$hostPort"
-                    $refId = [ref]$clientId
 
                     # Register if not yet enrolled
-                    if ([string]::IsNullOrWhiteSpace($clientId)) {
-                        $refToken = [ref]$authSecret
-                        $regOk = Register-ClientNode -BaseUrl $baseUrl -AuthSecret $authSecret -ClientId $refId -ClientToken $refToken
-                        if ($regOk) {
-                            $clientId = $refId.Value
-                            if ($refToken.Value -ne $authSecret) {
-                                $authSecret = $refToken.Value
-                                $cfg.Security.AuthSecret = $authSecret
-                            }
+                    if ([string]::IsNullOrWhiteSpace($clientId) -or [string]::IsNullOrWhiteSpace($authSecret)) {
+                        $regRes = Register-ClientNode -BaseUrl $baseUrl -AuthSecret $authSecret
+                        if ($regRes -and $regRes.Success) {
+                            $clientId = $regRes.ClientId
+                            $authSecret = $regRes.ClientToken
+                            $slideshowInterval = $regRes.Interval
                             $cfg.Security.ClientId = $clientId
+                            $cfg.Security.AuthSecret = $authSecret
+                            $cfg.Slideshow.IntervalSeconds = $slideshowInterval
                             Save-ClientConfig -Path $ConfigPath -ConfigObj $cfg
                         }
                     }
 
                     # Perform synchronization
-                    $syncOk = Sync-ClientCollection -BaseUrl $baseUrl -AuthSecret $authSecret -CacheDir $cacheDir -ClientId $refId
+                    $syncOk = Sync-ClientCollection -BaseUrl $baseUrl -AuthSecret $authSecret -CacheDir $cacheDir -ClientId $clientId
                     if ($syncOk) {
                         $script:ConsecutiveFailures = 0
                         $script:LocalCollection = Refresh-LocalCollectionList -CacheDir $cacheDir
                     }
                     else {
                         $script:ConsecutiveFailures++
-                        Write-ClientLog "Sync attempt failed ($($script:ConsecutiveFailures) consecutive errors). Backing off for $effectivePollInterval seconds." -Level WARN
+                        # If sync failed (e.g. 401 Unauthorized or host restarted), re-enroll automatically
+                        if ($script:ConsecutiveFailures -ge 2 -or [string]::IsNullOrWhiteSpace($authSecret)) {
+                            Write-ClientLog "Re-enrolling with Host to refresh authentication token..." -Level WARN
+                            $regRes = Register-ClientNode -BaseUrl $baseUrl -AuthSecret ""
+                            if ($regRes -and $regRes.Success) {
+                                $clientId = $regRes.ClientId
+                                $authSecret = $regRes.ClientToken
+                                $slideshowInterval = $regRes.Interval
+                                $cfg.Security.ClientId = $clientId
+                                $cfg.Security.AuthSecret = $authSecret
+                                $cfg.Slideshow.IntervalSeconds = $slideshowInterval
+                                Save-ClientConfig -Path $ConfigPath -ConfigObj $cfg
+                                $script:ConsecutiveFailures = 0
+                                Sync-ClientCollection -BaseUrl $baseUrl -AuthSecret $authSecret -CacheDir $cacheDir -ClientId $clientId | Out-Null
+                                $script:LocalCollection = Refresh-LocalCollectionList -CacheDir $cacheDir
+                            }
+                        }
                     }
 
                     # Heartbeat dispatch (every 30 seconds)
@@ -782,7 +824,7 @@ function Start-ClientAgent {
                 }
             }
 
-            # Rest small quantum to avoid CPU spin
+            # Sleep 500ms quantum to allow exact-second clock transition accuracy
             Start-Sleep -Milliseconds 500
         }
     }
@@ -796,4 +838,4 @@ function Start-ClientAgent {
 }
 
 # Run Agent
-Start-ClientAgent -Path $script:ConfigPath
+Start-ClientAgent -Path $script:ConfigPath -HostOverride $HostAddress

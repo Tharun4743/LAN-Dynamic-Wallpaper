@@ -11,47 +11,51 @@ A high-performance, enterprise-grade, **pure PowerShell-only** LAN Dynamic Wallp
 
 ---
 
-## ⚡ Quick Start: Exactly What You Need to Do (Easy 2-Step Setup)
+## ⚡ Quick Start: Exactly What You Need to Do (Easy Lab Setup)
 
-Setting up and running the dynamic wallpaper slideshow across your office, school, or computer lab network takes **less than 1 minute**. No installation packages, no third-party runtimes, and no manual command typing needed.
-
-The entire user-facing system is controlled with **exactly two batch files**:
-
-```
-Step 1: Host Administrator PC                          Step 2: Client Workstations (30–100 PCs)
-+------------------------------------+                 +------------------------------------+
-| Right-click Start-Host.bat         |      LAN        | Right-click Start-Client.bat       |
-| Select "Run as administrator"      |   Sync Stream   | Select "Run as administrator"      |
-| -> Drops photos into Wallpapers/   | --------------> | -> Auto-discovers Host on LAN      |
-| -> Starts Host Server & Slideshow  |                 | -> Syncs photos & sets desktop     |
-+------------------------------------+                 +------------------------------------+
-```
-
----
+Setting up and running the dynamic wallpaper slideshow across your computer lab, school, or office network takes **less than 1 minute**. No installation packages, no third-party runtimes, and no manual command typing needed.
 
 ### 🖥️ Step 1: On the Host PC (The Administrator Computer)
 
-1. Right-click **`Start-Host.bat`** and select **Run as administrator**.
+1. Double-click **`Start-Host.bat`** (or **`1-Start-Host.bat`**).
 2. If prompted by Windows User Account Control (UAC), click **Yes**.
 3. The launcher automatically:
    - Configures the Windows Defender Firewall rules for TCP `8765` and UDP `8766`.
    - Idempotently reserves the HTTP.sys URL ACL (`http://+:8765/`).
    - Automatically opens the **`Wallpapers/`** folder in Windows Explorer on your screen!
-4. **Drop your photos** into this `Wallpapers/` folder:
-   - Supported formats: **JPG, JPEG, PNG, BMP, GIF, WEBP, TIFF** (and HEIC if the Windows HEIF extension is present).
-5. The Host immediately sets its own desktop wallpaper and rotates through all images every **5 seconds**!
-6. **Keep `Start-Host.bat` open** (you can minimize the window).
+   - Prints the Host's active LAN IPv4 address (e.g. `192.168.31.20` or `172.16.20.169`).
+4. **Drop your photos & videos** into this `Wallpapers/` folder:
+   - Supported formats: **JPG, JPEG, PNG, BMP, GIF, WEBP, TIFF, MP4, MOV, WMV**.
+   - **Live Dynamic Updates**: You can drop, replace, or delete photos **without stopping the server**! Changes are detected within 2 seconds.
+5. **Keep `Start-Host.bat` open** (you can minimize the window).
 
 ---
 
-### 💻 Step 2: On Client PCs (All 30–100 Lab/Office Computers)
+### 💻 Step 2: On Client Workstations (All Lab Computers)
 
-1. Copy the project folder to the client computer (via USB drive or LAN network share).
-2. Right-click **`Start-Client.bat`** and select **Run as administrator** for initial setup.
-3. **That's all!**
-   - You do **NOT** need to edit JSON files or type any IP addresses.
-   - The client automatically scans the LAN, discovers the Host PC, registers itself, receives its provisioned client token, downloads all photos, and immediately updates the desktop wallpaper.
-   - **Automatic Daily Startup**: The launcher registers background startup for the logged-in user in `HKCU:\Software\Microsoft\Windows\CurrentVersion\Run`. Users do **NOT** need to run the launcher as administrator every day—after initial setup, the wallpaper agent starts automatically upon user logon.
+You have **two super easy options** to connect client PCs:
+
+#### ⚡ Option A (Zero-Download 1-Click Bootstrap - Recommended for Labs):
+On any client PC, simply open **PowerShell** and run the 1-click command shown on your Host screen:
+```powershell
+irm http://<HOST_IP>:8765/setup | iex
+```
+*(Example: `irm http://192.168.31.20:8765/setup | iex`)*
+- The script automatically downloads the client files directly from the Host and launches the slideshow!
+
+#### 📁 Option B (Using the Project Folder):
+1. Copy the project folder to the client computer (via USB or network share).
+2. Double-click **`Start-Client.bat`** (or **`2-Start-Client.bat`**).
+   - If auto-discovery finds the Host, it connects automatically!
+   - You can also pass the Host IP as an argument: `Start-Client.bat 192.168.31.20`
+
+---
+
+### ⏱️ Exact-Second Fleet Synchronization
+
+All client workstations in the lab calculate transitions against UTC epoch time:
+- Every computer in the fleet displays the **exact same image at the exact same second**.
+- When you drop a new wallpaper onto the Host, all clients download it in the background and rotate to it simultaneously in perfect lockstep!
 
 ---
 
@@ -59,9 +63,10 @@ Step 1: Host Administrator PC                          Step 2: Client Workstatio
 
 | What You Want to Do | How to Do It in 1 Step |
 | :--- | :--- |
-| **Add a new photo** | Just drop the photo file into `Wallpapers/` on the Host PC. Within 10 seconds, all client computers will automatically start showing it! |
-| **Remove a photo** | Delete the file from `Wallpapers/` on the Host PC. All client computers immediately stop showing it. |
+| **Add a new photo without stopping server** | Just drop the photo file into `Wallpapers/` on the Host PC. Within 2-3 seconds, all client computers will automatically download and start showing it! |
+| **Remove a photo** | Delete the file from `Wallpapers/` on the Host PC. All client computers immediately prune it from their cache. |
 | **Change the 5-second timer** | Open `Host\HostConfig.json` in Notepad, change `"DefaultIntervalSeconds": 5` to any number you want (e.g. `10` or `30`), and save. |
+| **Connect client PC in 3 seconds** | Open PowerShell on the client and run: `irm http://<HOST_IP>:8765/setup \| iex`. |
 | **Check connected clients** | Open PowerShell and run `powershell -File Tools\Deployment-Report.ps1` to view live client workstations. |
 | **Run verification tests** | Open PowerShell and run `powershell -ExecutionPolicy Bypass -File Tests\Run-All-Tests.ps1`. |
 

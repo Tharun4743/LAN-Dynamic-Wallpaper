@@ -125,6 +125,7 @@ function Step-WallpaperRotation {
     .SYNOPSIS
     Advances the slideshow deterministically to the next image in the collection.
     Handles deletions, additions, and single-image boundary conditions safely.
+    Supports both [ref] and integer index passing to avoid argument transformation errors.
     #>
     [CmdletBinding()]
     param(
@@ -132,7 +133,7 @@ function Step-WallpaperRotation {
         [System.Collections.Generic.List[string]]$ImageFiles,
 
         [Parameter(Mandatory = $true)]
-        [ref]$CurrentIndex
+        $CurrentIndex
     )
 
     if ($null -eq $ImageFiles -or $ImageFiles.Count -eq 0) {
@@ -141,16 +142,22 @@ function Step-WallpaperRotation {
     }
 
     $count = $ImageFiles.Count
+    $isRef = ($CurrentIndex -is [System.Management.Automation.PSReference])
+    $indexVal = if ($isRef) { [int]$CurrentIndex.Value } else { [int]$CurrentIndex }
 
     # Boundary check for index
-    if ($CurrentIndex.Value -lt 0 -or $CurrentIndex.Value -ge $count) {
-        $CurrentIndex.Value = 0
+    if ($indexVal -lt 0 -or $indexVal -ge $count) {
+        $indexVal = 0
     }
     else {
-        $CurrentIndex.Value = ($CurrentIndex.Value + 1) % $count
+        $indexVal = ($indexVal + 1) % $count
     }
 
-    $selectedPath = $ImageFiles[$CurrentIndex.Value]
+    if ($isRef) {
+        $CurrentIndex.Value = $indexVal
+    }
+
+    $selectedPath = $ImageFiles[$indexVal]
     if (Test-Path -LiteralPath $selectedPath) {
         $applied = Set-DesktopWallpaper -ImagePath $selectedPath
         if ($applied) {
@@ -160,10 +167,13 @@ function Step-WallpaperRotation {
     else {
         Write-Warning "Selected image file not found on disk: $selectedPath. Advancing to next available."
         # If the file disappeared, remove and retry next
-        $ImageFiles.RemoveAt($CurrentIndex.Value)
+        $ImageFiles.RemoveAt($indexVal)
         if ($ImageFiles.Count -gt 0) {
-            $CurrentIndex.Value = $CurrentIndex.Value % $ImageFiles.Count
-            $nextPath = $ImageFiles[$CurrentIndex.Value]
+            $indexVal = $indexVal % $ImageFiles.Count
+            if ($isRef) {
+                $CurrentIndex.Value = $indexVal
+            }
+            $nextPath = $ImageFiles[$indexVal]
             if (Test-Path -LiteralPath $nextPath) {
                 Set-DesktopWallpaper -ImagePath $nextPath | Out-Null
                 return $nextPath
@@ -173,3 +183,40 @@ function Step-WallpaperRotation {
 
     return $null
 }
+
+function Get-SynchronizedWallpaper {
+    <#
+    .SYNOPSIS
+    Calculates the exact synchronized wallpaper across the entire fleet
+    based on epoch time so all client workstations rotate at the exact same second.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Collections.Generic.List[string]]$ImageFiles,
+
+        [Parameter(Mandatory = $false)]
+        [int]$IntervalSeconds = 5
+    )
+
+    if ($null -eq $ImageFiles -or $ImageFiles.Count -eq 0) {
+        return $null
+    }
+
+    if ($IntervalSeconds -le 0) { $IntervalSeconds = 5 }
+
+    # Unix epoch timestamp in UTC seconds
+    $epochSeconds = [int64]([DateTime]::UtcNow - [DateTime]::new(1970, 1, 1, 0, 0, 0, [System.DateTimeKind]::Utc)).TotalSeconds
+
+    # Deterministic synchronized index across every PC in the lab
+    $syncIndex = [int]([Math]::Floor($epochSeconds / $IntervalSeconds) % $ImageFiles.Count)
+    $selectedPath = $ImageFiles[$syncIndex]
+
+    return [PSCustomObject]@{
+        Index            = $syncIndex
+        Path             = $selectedPath
+        SecondsRemaining = $IntervalSeconds - ($epochSeconds % $IntervalSeconds)
+    }
+}
+
+
