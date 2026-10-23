@@ -10,7 +10,8 @@
     "RequestTimeoutSeconds": 15
   },
   "Security": {
-    "AuthSecret": "a8f9c3e2b1d4765e9081234567abcdef0123456789abcdef0123456789abcdef",
+    "_comment_auth": "AuthSecret will be populated during client installation or provisioning from Host",
+    "AuthSecret": "",
     "ClientId": ""
   },
   "Slideshow": {

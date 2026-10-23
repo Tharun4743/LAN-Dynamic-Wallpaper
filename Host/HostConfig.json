@@ -1,45 +1,46 @@
 {
-  "Server": {
-    "BindAddress": "0.0.0.0",
-    "Port": 8765,
-    "DiscoveryPort": 8766,
-    "EnableDiscovery": true,
-    "MaxConcurrentRequests": 128,
-    "RequestTimeoutSeconds": 30
-  },
-  "Security": {
-    "AuthSecret": "a8f9c3e2b1d4765e9081234567abcdef0123456789abcdef0123456789abcdef",
-    "AdminSecret": "f1e2d3c4b5a6978876543210fedcba9876543210fedcba9876543210fedcba98",
-    "RequireAuthentication": true,
-    "MaxImageSizeBytes": 104857600,
-    "MaxPhotosCapacity": 10000,
-    "AllowedExtensions": [
-      ".jpg",
-      ".jpeg",
-      ".png",
-      ".bmp",
-      ".gif",
-      ".webp",
-      ".heic",
-      ".heif",
-      ".tiff",
-      ".tif",
-      ".ico",
-      ".mp4",
-      ".mov",
-      ".wmv",
-      ".avi",
-      ".mkv"
-    ]
-  },
-  "Slideshow": {
-    "_comment_timer": "SLIDESHOW TIMER: To change interval in seconds, edit DefaultIntervalSeconds below (e.g., 5 for 5s, 10 for 10s, 60 for 1min, 300 for 5min)",
-    "DefaultIntervalSeconds": 5
-  },
-  "Paths": {
-    "WallpapersDir": "../Wallpapers",
-    "PublishedDir": "../Wallpapers",
-    "LogsDir": "../Logs",
-    "ClientsStore": "./clients.json"
-  }
+    "Server":  {
+                   "BindAddress":  "0.0.0.0",
+                   "Port":  8765,
+                   "DiscoveryPort":  8766,
+                   "EnableDiscovery":  true,
+                   "MaxConcurrentRequests":  128,
+                   "RequestTimeoutSeconds":  30
+               },
+    "Security":  {
+                     "_comment_secrets":  "AuthSecret and AdminSecret will be auto-generated cryptographically on first run or installation if left blank",
+                     "AuthSecret":  "",
+                     "AdminSecret":  "",
+                     "RequireAuthentication":  true,
+                     "MaxImageSizeBytes":  104857600,
+                     "MaxPhotosCapacity":  10000,
+                     "AllowedExtensions":  [
+                                               ".jpg",
+                                               ".jpeg",
+                                               ".png",
+                                               ".bmp",
+                                               ".gif",
+                                               ".webp",
+                                               ".heic",
+                                               ".heif",
+                                               ".tiff",
+                                               ".tif",
+                                               ".ico",
+                                               ".mp4",
+                                               ".mov",
+                                               ".wmv",
+                                               ".avi",
+                                               ".mkv"
+                                           ]
+                 },
+    "Slideshow":  {
+                      "_comment_timer":  "SLIDESHOW TIMER: To change interval in seconds, edit DefaultIntervalSeconds below (e.g., 5 for 5s, 10 for 10s, 60 for 1min, 300 for 5min)",
+                      "DefaultIntervalSeconds":  5
+                  },
+    "Paths":  {
+                  "WallpapersDir":  "../Wallpapers",
+                  "PublishedDir":  "../Wallpapers",
+                  "LogsDir":  "../Logs",
+                  "ClientsStore":  "./clients.json"
+              }
 }

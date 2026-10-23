@@ -78,7 +78,7 @@ Step 1 (Host PC)                      Step 2 (Upload Photos)                 Ste
   - **`Monitor / Auditor`**: Unauthenticated read-only health probe access (`/api/v1/health`) for network monitoring tools.
 - **Automatic Auto-Discovery & Resilient Fallback**: Clients locate the host via UDP broadcast handshake on port `8766` with automated fallback to static IP configuration.
 - **Deterministic Desktop Rotation**: Seamless cycling through local cache even during network interruptions, host reboots, or temporary disconnections.
-- **Single-Instance Mutex Guarantee**: Prevents duplicate client processes and desktop lockups via named system mutexes (`Global\LAN_Dynamic_Wallpaper_Client_Mutex`).
+- **Single-Instance Mutex Guarantee**: Prevents duplicate client processes and desktop lockups via session-scoped system mutex (`Local\LAN_Dynamic_Wallpaper_Client_$userSid`).
 
 ---
 
@@ -127,37 +127,38 @@ Step 1 (Host PC)                      Step 2 (Upload Photos)                 Ste
 ## 📂 Project Directory Structure
 
 ```
-IT/
+LAN-Dynamic-Wallpaper/
 ├── 1-Start-Host.bat             # 🖥️ 1-CLICK HOST LAUNCHER (Auto-detects IP, opens Wallpapers, starts host slideshow)
 ├── 2-Start-Client.bat           # 💻 1-CLICK CLIENT LAUNCHER (Auto-discovers host over LAN, syncs & starts slideshow)
-└── LAN-Dynamic-Wallpaper/
-    ├── Host/
-    │   ├── Host.ps1             # Multi-threaded HTTP listener & UDP discovery daemon
-    │   ├── Publisher.ps1        # Format converter, magic-byte validator, SHA-256 hasher, manifest generator
-    │   └── HostConfig.json      # Host network, port, security, and slideshow settings
-    ├── Client/
-    │   ├── Client.ps1           # Client background synchronization and health agent
-    │   ├── Wallpaper.ps1        # Win32 P/Invoke desktop wallpaper rotation engine
-    │   └── ClientConfig.json    # Client network, host IP, secret, and interval settings
-    ├── Wallpapers/              # 📂 SINGLE PHOTO VAULT (Drop photos/videos here; manifest & distribution managed here)
-    ├── Tools/
-    │   ├── Find-Host.ps1        # LAN UDP broadcast discovery utility
-    │   ├── Test-Connection.ps1  # End-to-end network & auth verification tool
-    │   ├── Diagnose.ps1         # Comprehensive system, port, firewall & task inspector
-    │   └── Deployment-Report.ps1# Fleet telemetry and online client roster viewer
-    ├── Tests/
-    │   ├── Run-All-Tests.ps1    # Master test harness executing all 5 suites with summary scorecard
-    │   ├── Test-Host.ps1        # Automated suite for host endpoints, tokens & RBAC
-    │   ├── Test-Publisher.ps1   # Automated suite for file watcher, magic bytes & hashing
-    │   ├── Test-Client.ps1      # Automated suite for Win32 API, rotation & mutex
-    │   ├── Test-Security.ps1    # Penetration suite for path traversal & auth bypass
-    │   └── Test-100Clients.ps1  # 100-client concurrent load benchmark simulation
-    ├── 3-Test-System.bat        # ⚡ 1-CLICK TEST HARNESS (Runs all 5 enterprise verification test suites)
-    ├── README.md                # System architecture and quickstart guide
-    ├── INSTALLATION-GUIDE.md    # Comprehensive host and client deployment manual
-    ├── TROUBLESHOOTING.md       # Diagnostic flowcharts and remediation guide
-    └── SECURITY.md              # Threat model, RBAC policies and defense mechanisms
+├── 3-Test-System.bat            # ⚡ 1-CLICK TEST HARNESS (Runs all 5 enterprise verification test suites)
+├── Host/
+│   ├── Host.ps1                 # Multi-threaded HTTP listener & UDP discovery daemon
+│   ├── Publisher.ps1            # Format converter, magic-byte validator, SHA-256 hasher, manifest generator
+│   └── HostConfig.json          # Host network, port, security, and slideshow settings
+├── Client/
+│   ├── Client.ps1               # Client background synchronization and health agent
+│   ├── Wallpaper.ps1            # Win32 P/Invoke desktop wallpaper rotation engine
+│   └── ClientConfig.json        # Client network, host IP, secret, and interval settings
+├── Wallpapers/                  # 📂 SINGLE PHOTO VAULT (Drop photos/videos here; manifest & distribution managed here)
+├── Tools/
+│   ├── Find-Host.ps1            # LAN UDP broadcast discovery utility
+│   ├── Test-Connection.ps1      # End-to-end network & auth verification tool
+│   ├── Diagnose.ps1             # Comprehensive system, port, firewall & task inspector
+│   └── Deployment-Report.ps1    # Fleet telemetry and online client roster viewer
+├── Tests/
+│   ├── Run-All-Tests.ps1        # Master test harness executing all 5 suites with summary scorecard
+│   ├── Test-Host.ps1            # Automated suite for host endpoints, tokens & RBAC
+│   ├── Test-Publisher.ps1       # Automated suite for file watcher, magic bytes & hashing
+│   ├── Test-Client.ps1          # Automated suite for Win32 API, rotation & mutex
+│   ├── Test-Security.ps1        # Penetration suite for path traversal & auth bypass
+│   └── Test-100Clients.ps1      # 100-client concurrent load benchmark simulation
+├── README.md                    # System architecture and quickstart guide
+├── INSTALLATION-GUIDE.md        # Comprehensive host and client deployment manual
+├── TROUBLESHOOTING.md           # Diagnostic flowcharts and remediation guide
+└── SECURITY.md                  # Threat model, RBAC policies and defense mechanisms
 ```
+
+*(Note: `1-Start-Host.bat` and `2-Start-Client.bat` can be executed directly from inside the cloned folder or placed in a parent folder with zero configuration changes).*
 
 ### 📂 Unified Single-Folder Photo Management: `Wallpapers/`
 

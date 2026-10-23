@@ -58,10 +58,21 @@ $script:Running = $true
 $script:StartTime = [DateTime]::UtcNow
 $script:HttpListener = $null
 $script:UdpListener = $null
+$script:HostMutex = $null
 $script:ClientRegistry = @{}
 $script:ClientLock = New-Object System.Object
 $script:LogLock = New-Object System.Object
 $script:LogDirectory = $null
+
+function New-CryptoSecret {
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    $bytes = New-Object byte[] 32
+    $rng.GetBytes($bytes)
+    $sb = New-Object System.Text.StringBuilder
+    foreach ($b in $bytes) { [void]$sb.Append($b.ToString("x2")) }
+    return $sb.ToString()
+}
+
 
 function Write-HostLog {
     [CmdletBinding()]
@@ -366,6 +377,55 @@ function Start-HostServer {
     $allowedExts = $cfg.Security.AllowedExtensions
     $defaultInterval = $cfg.Slideshow.DefaultIntervalSeconds
 
+    # Dynamic cryptographic secret generation if secrets are empty or placeholders
+    $secretsUpdated = $false
+    if ([string]::IsNullOrWhiteSpace($authSecret) -or $authSecret -eq "GENERATE_ON_INSTALL") {
+        $authSecret = New-CryptoSecret
+        $cfg.Security.AuthSecret = $authSecret
+        $secretsUpdated = $true
+    }
+    if ([string]::IsNullOrWhiteSpace($adminSecret) -or $adminSecret -eq "GENERATE_ON_INSTALL") {
+        $adminSecret = New-CryptoSecret
+        $cfg.Security.AdminSecret = $adminSecret
+        $secretsUpdated = $true
+    }
+    if ($secretsUpdated) {
+        try {
+            $updatedJson = $cfg | ConvertTo-Json -Depth 5
+            [System.IO.File]::WriteAllText($ConfigFilePath, $updatedJson, [System.Text.Encoding]::UTF8)
+            Write-HostLog "Generated new cryptographically random 256-bit secrets for Host." -Level AUDIT
+
+            # Apply restrictive Windows ACLs to configuration file
+            try {
+                $acl = Get-Acl -LiteralPath $ConfigFilePath
+                $acl.SetAccessRuleProtection($true, $false)
+                $adminSid = New-Object System.Security.Principal.SecurityIdentifier([System.Security.Principal.WellKnownSidType]::BuiltinAdministratorsSid, $null)
+                $systemSid = New-Object System.Security.Principal.SecurityIdentifier([System.Security.Principal.WellKnownSidType]::LocalSystemSid, $null)
+                $userSid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
+                $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($adminSid, "FullControl", "Allow")))
+                $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($systemSid, "FullControl", "Allow")))
+                $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($userSid, "FullControl", "Allow")))
+                Set-Acl -LiteralPath $ConfigFilePath -AclObject $acl -ErrorAction SilentlyContinue
+            } catch {}
+        }
+        catch {
+            Write-HostLog "Notice: Could not persist newly generated secrets: $($_.Exception.Message)" -Level WARN
+        }
+    }
+
+    # Enforce Single-Instance Host Mutex per Port
+    $createdNewHost = $false
+    try {
+        $script:HostMutex = New-Object System.Threading.Mutex($true, "Global\LAN_Dynamic_Wallpaper_Host_Port_$port", [ref]$createdNewHost)
+        if (-not $createdNewHost) {
+            Write-HostLog "Another instance of Host Server is already running on port $port. Exiting." -Level ERROR
+            throw "Duplicate host server instance detected on port $port."
+        }
+    }
+    catch [System.Exception] {
+        if ($_.Exception.Message -like "*Duplicate host*") { throw }
+    }
+
     $configDir = Split-Path $ConfigFilePath -Parent
     $wallpapersDir = [System.IO.Path]::GetFullPath((Join-Path $configDir $cfg.Paths.WallpapersDir))
     $publishedDir = [System.IO.Path]::GetFullPath((Join-Path $configDir $cfg.Paths.PublishedDir))
@@ -403,6 +463,7 @@ function Start-HostServer {
     Write-Host "  [TIMER]    Slideshow : $defaultInterval SECONDS (Rotates Host & Clients every ${defaultInterval}s)" -ForegroundColor Yellow
     Write-Host "  [CAPACITY] Max Fleet : Up to 10,000 photos (100 MB per file limit)" -ForegroundColor White
     Write-Host "  [NETWORK]  Host IPv4 : $hostIp (HTTP: $port | UDP Discovery: $discPort)" -ForegroundColor Cyan
+    Write-Host "  [SECURITY] Client Token: $(if ($authSecret) { $authSecret } else { '[None - Open Access]' })" -ForegroundColor Yellow
     Write-Host "  [PUBLISHED] Active   : $(if ($initialManifest) { $initialManifest.totalImages } else { 0 }) assets ready on LAN" -ForegroundColor Green
     Write-Host "==============================================================================" -ForegroundColor Green
     Write-Host ""
@@ -414,8 +475,9 @@ function Start-HostServer {
         Write-HostLog "UDP Discovery responder active on UDP port $discPort" -Level INFO
     }
 
-    # Start HTTP Listener with resilient tiered binding
+    # Start HTTP Listener with validated interface binding
     $bound = $false
+    $bindError = $null
 
     # Tier 1: Wildcard prefix (for elevated host with URL ACL)
     try {
@@ -424,10 +486,12 @@ function Start-HostServer {
         $testListener.Start()
         $script:HttpListener = $testListener
         $bound = $true
-    } catch {}
+    } catch {
+        $bindError = $_.Exception.Message
+    }
 
-    # Tier 2: Direct Host IP + 127.0.0.1
-    if (-not $bound) {
+    # Tier 2: Direct Host LAN IP + 127.0.0.1
+    if (-not $bound -and $hostIp -ne "127.0.0.1") {
         try {
             $testListener = New-Object System.Net.HttpListener
             $testListener.Prefixes.Add("http://$hostIp`:$port/")
@@ -435,11 +499,13 @@ function Start-HostServer {
             $testListener.Start()
             $script:HttpListener = $testListener
             $bound = $true
-        } catch {}
+        } catch {
+            $bindError = $_.Exception.Message
+        }
     }
 
-    # Tier 3: Localhost + 127.0.0.1 (Fallback for tests & user mode)
-    if (-not $bound) {
+    # Tier 3: Loopback only if explicitly configured or running on isolated test environment without physical LAN
+    if (-not $bound -and ($hostIp -eq "127.0.0.1" -or ($null -ne $cfg.Server.BindAddress -and $cfg.Server.BindAddress -eq "127.0.0.1"))) {
         try {
             $testListener = New-Object System.Net.HttpListener
             $testListener.Prefixes.Add("http://127.0.0.1:$port/")
@@ -448,8 +514,23 @@ function Start-HostServer {
             $script:HttpListener = $testListener
             $bound = $true
         } catch {
-            throw "Failed to bind HttpListener on port ${port}: $($_.Exception.Message)"
+            $bindError = $_.Exception.Message
         }
+    }
+
+    # Enforce strict LAN binding: Stop with clear error if external LAN binding fails
+    if (-not $bound) {
+        Write-HostLog "FATAL: Failed to bind HTTP Server to LAN on port $port ($bindError)." -Level ERROR
+        Write-Host ""
+        Write-Host "==============================================================================" -ForegroundColor Red
+        Write-Host "  BINDING ERROR: Cannot bind HTTP Server to LAN address http://$hostIp`:$port/" -ForegroundColor Red
+        Write-Host "==============================================================================" -ForegroundColor Red
+        Write-Host "  To enable LAN access, please perform one of the following:" -ForegroundColor Yellow
+        Write-Host "  1. Right-click 1-Start-Host.bat and choose 'Run as administrator'" -ForegroundColor White
+        Write-Host "  2. Or reserve the URL ACL manually from an elevated command prompt:" -ForegroundColor White
+        Write-Host "     netsh http add urlacl url=http://+:$port/ user=Everyone" -ForegroundColor Cyan
+        Write-Host "==============================================================================" -ForegroundColor Red
+        throw "Failed to bind HttpListener to LAN interface on port ${port}: $bindError"
     }
 
     Write-HostLog "HTTP Server listening for client connections on port $port" -Level INFO
@@ -558,8 +639,6 @@ function Start-HostServer {
                         collectionVersion = $curVer
                         totalImages       = $imgCount
                         registeredClients = $script:ClientRegistry.Count
-                        loadedConfigPath  = $ConfigFilePath
-                        publishedDir      = $publishedDir
                     }
                     continue
                 }
@@ -614,7 +693,6 @@ function Start-HostServer {
                         status                 = "ENROLLED"
                         slideshowInterval      = $defaultInterval
                         collectionVersion      = $curVer
-                        token                  = $authSecret
                     }
                     continue
                 }
@@ -809,6 +887,11 @@ function Start-HostServer {
             $udpWorker.PowerShell.Dispose()
             $udpWorker.Runspace.Close()
             $udpWorker.Runspace.Dispose()
+        }
+        if ($null -ne $script:HostMutex) {
+            try { $script:HostMutex.ReleaseMutex() } catch {}
+            $script:HostMutex.Dispose()
+            $script:HostMutex = $null
         }
     }
 }

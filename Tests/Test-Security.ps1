@@ -209,6 +209,24 @@ try {
     # 3. Valid Admin Token on Admin Endpoints
     $adminClientsResp = Invoke-RestMethod -Uri "$baseUrl/api/v1/admin/clients" -Headers @{ "Authorization" = "Bearer $adminSecret" }
     Assert-Condition "Admin role accessing /api/v1/admin/clients permitted (HTTP 200)" ($adminClientsResp.totalClients -ge 0)
+
+    # ==========================================================================
+    # TEST SECTION 4: Zero Information & Secret Leakage Verification
+    # ==========================================================================
+    Write-Host "`n-- Section 4: Information Leakage & Secret Exposure Defense --" -ForegroundColor White
+
+    # 1. Health Probe Must Not Leak Filesystem Paths
+    $healthProbe = Invoke-RestMethod -Uri "$baseUrl/api/v1/health"
+    $hasConfigPathLeak = ($null -ne $healthProbe.PSObject.Properties['loadedConfigPath'])
+    $hasPublishedDirLeak = ($null -ne $healthProbe.PSObject.Properties['publishedDir'])
+    Assert-Condition "Health endpoint does not expose loadedConfigPath" (-not $hasConfigPathLeak)
+    Assert-Condition "Health endpoint does not expose publishedDir" (-not $hasPublishedDirLeak)
+
+    # 2. Registration Endpoint Must Never Return AuthSecret
+    $regBody = @{ hostname = "TEST-PC-SEC"; clientVersion = "1.0.0" } | ConvertTo-Json
+    $regResp = Invoke-RestMethod -Uri "$baseUrl/api/v1/auth/register" -Method Post -Headers @{ "X-Auth-Token" = $authSecret } -Body $regBody -ContentType "application/json"
+    $hasTokenLeak = ($null -ne $regResp.PSObject.Properties['token'])
+    Assert-Condition "Registration response does NOT leak auth token" (-not $hasTokenLeak)
 }
 finally {
     if ($null -ne $process -and -not $process.HasExited) {

@@ -31,13 +31,19 @@ if ([string]::IsNullOrWhiteSpace($ConfigPath)) {
 }
 $script:ConfigPath = [System.IO.Path]::GetFullPath($ConfigPath)
 
-# Single Instance Mutex Enforcement
-$script:MutexName = "Global\LAN_Dynamic_Wallpaper_Client_Mutex"
+# Single Instance Mutex Enforcement (Session-Scoped to allow legitimate multi-user sessions)
+$userSid = ""
+try {
+    $userSid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+} catch {
+    $userSid = [System.Environment]::UserName
+}
+$script:MutexName = "Local\LAN_Dynamic_Wallpaper_Client_$userSid"
 $script:CreatedNew = $false
 try {
     $script:AppMutex = New-Object System.Threading.Mutex($true, $script:MutexName, [ref]$script:CreatedNew)
     if (-not $script:CreatedNew) {
-        Write-Warning "Another instance of LAN Dynamic Wallpaper Client is already running. Exiting."
+        Write-Warning "Another instance of LAN Dynamic Wallpaper Client is already running for user session ($userSid). Exiting."
         exit 0
     }
 }
@@ -192,9 +198,12 @@ function Discover-HostOnLan {
         $responseJson = [System.Text.Encoding]::UTF8.GetString($recvBytes)
         $resp = $responseJson | ConvertFrom-Json
 
-        if ($resp -and $resp.service -eq "LAN_WALLPAPER_HOST") {
-            Write-ClientLog "Discovered Host PC: $($resp.hostname) at $($resp.ip):$($resp.port)" -Level INFO
-            return $resp
+        if ($resp -and $resp.service -eq "LAN_WALLPAPER_HOST" -and -not [string]::IsNullOrWhiteSpace($resp.ip)) {
+            $parsedIp = $null
+            if ([System.Net.IPAddress]::TryParse($resp.ip, [ref]$parsedIp) -and ($resp.port -gt 0 -and $resp.port -le 65535)) {
+                Write-ClientLog "Discovered Host PC: $($resp.hostname) at $($resp.ip):$($resp.port)" -Level INFO
+                return $resp
+            }
         }
     }
     catch [System.Net.Sockets.SocketException] {
@@ -443,6 +452,13 @@ function Sync-ClientCollection {
 
     foreach ($img in $images) {
         $fileName = $img.name
+        
+        # Defensive check against path traversal or illegal characters in manifest
+        if ([string]::IsNullOrWhiteSpace($fileName) -or $fileName.Contains("..") -or $fileName.Contains("/") -or $fileName.Contains("\") -or ($fileName.IndexOfAny([System.IO.Path]::GetInvalidFileNameChars()) -ge 0)) {
+            Write-ClientLog "Security rejection: Invalid or malicious filename in manifest: '$fileName'. Skipping." -Level ERROR
+            continue
+        }
+
         $expectedHash = $img.hash
         $targetPath = Join-Path $CacheDir $fileName
         [void]$downloadedFiles.Add($fileName)
@@ -561,6 +577,51 @@ function Start-ClientAgent {
     }
 
     $authSecret = $cfg.Security.AuthSecret
+    if ([string]::IsNullOrWhiteSpace($authSecret) -or $authSecret -eq "GENERATE_ON_INSTALL") {
+        if ($env:LAN_WALLPAPER_AUTH_SECRET) {
+            $authSecret = $env:LAN_WALLPAPER_AUTH_SECRET
+            $cfg.Security.AuthSecret = $authSecret
+        }
+        elseif (Test-Path -LiteralPath (Join-Path $configDir "../Host/HostConfig.json")) {
+            try {
+                $hCfg = Get-Content -LiteralPath (Join-Path $configDir "../Host/HostConfig.json") -Raw | ConvertFrom-Json
+                if ($hCfg.Security.AuthSecret) {
+                    $authSecret = $hCfg.Security.AuthSecret
+                    $cfg.Security.AuthSecret = $authSecret
+                    Save-ClientConfig -Path $Path -ConfigObj $cfg
+                    Write-ClientLog "Synchronized AuthSecret from local Host configuration." -Level INFO
+                }
+            } catch {}
+        }
+        elseif ([Environment]::UserInteractive -and -not $RunOnce) {
+            Write-Host ""
+            Write-Host "==============================================================================" -ForegroundColor Yellow
+            Write-Host "  CLIENT AUTHENTICATION SETUP" -ForegroundColor Yellow
+            Write-Host "==============================================================================" -ForegroundColor Yellow
+            Write-Host "  Enter the Client Auth Secret from your Host PC console or HostConfig.json" -ForegroundColor White
+            Write-Host "  (If your Host has RequireAuthentication=false, you may simply press Enter):" -ForegroundColor Gray
+            $userKey = Read-Host "  Auth Secret"
+            if (-not [string]::IsNullOrWhiteSpace($userKey)) {
+                $authSecret = $userKey.Trim()
+                $cfg.Security.AuthSecret = $authSecret
+                Save-ClientConfig -Path $Path -ConfigObj $cfg
+                Write-ClientLog "Saved AuthSecret to ClientConfig.json." -Level INFO
+            }
+        }
+    }
+
+    # Idempotently register interactive desktop logon startup in HKCU Run
+    try {
+        $runKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
+        $currentVal = (Get-ItemProperty -Path $runKey -Name "LAN-Dynamic-Wallpaper-Client" -ErrorAction SilentlyContinue)."LAN-Dynamic-Wallpaper-Client"
+        $thisScript = if ($PSCommandPath) { $PSCommandPath } else { Join-Path $scriptDir "Client.ps1" }
+        $targetCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$([System.IO.Path]::GetFullPath($thisScript))`""
+        if ($currentVal -ne $targetCmd) {
+            Set-ItemProperty -Path $runKey -Name "LAN-Dynamic-Wallpaper-Client" -Value $targetCmd -Force -ErrorAction SilentlyContinue | Out-Null
+            Write-ClientLog "Registered interactive user logon auto-start in HKCU Run." -Level DEBUG
+        }
+    } catch {}
+
     $clientId = $cfg.Security.ClientId
     $hostIp = $cfg.Connection.HostAddress
     $hostPort = $cfg.Connection.HostPort

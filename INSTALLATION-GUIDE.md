@@ -7,9 +7,9 @@ This guide details the complete deployment lifecycle for the LAN Dynamic Wallpap
 ## 📋 System Prerequisites
 
 ### Host PC
-- **Operating System**: Windows 11 (21H2 or newer) or Windows 10 (1809 or newer), Pro / Enterprise / Education.
+- **Operating System**: Windows 11 (21H2 or newer) or Windows 10 (1809 or newer), Pro / Enterprise / Education / Home.
 - **PowerShell**: Windows PowerShell 5.1 (built-in) or PowerShell 7.x.
-- **Permissions**: Administrator privileges required for initial setup (firewall configuration, scheduled task creation, and URL ACL binding).
+- **Permissions**: Administrator privileges required on initial launch to bind the HTTP port, configure firewall rules, and register the URL ACL.
 - **Network**: Static IPv4 address or DHCP reservation recommended on the wired Ethernet adapter.
 - **Port Availability**:
   - `TCP 8765`: HTTP API and image streaming endpoint.
@@ -23,173 +23,127 @@ This guide details the complete deployment lifecycle for the LAN Dynamic Wallpap
 
 ---
 
-## ⚡ Quick Run (The 3 Core Batch Files)
+## ⚡ Quick Run Architecture (The Core Batch Files)
 
-For rapid zero-setup deployment, copy the `LAN-Dynamic-Wallpaper` folder and run:
-1. **On Host PC**: Double-click **`1-Start-Host.bat`** (Starts host server, publishes wallpapers, and begins host desktop slideshow).
-2. **On Client PCs**: Double-click **`2-Start-Client.bat`** (Discovers host, syncs wallpapers, and begins client desktop slideshow).
-3. **Automated Verification**: Double-click **`3-Test-System.bat`** (Runs all 5 test suites).
+The system is streamlined into self-contained launchers that handle setup and execution automatically:
+
+1. **On Host PC**: Double-click **`1-Start-Host.bat`**
+   - Automatically checks for Administrator elevation and self-elevates if needed.
+   - Configures Windows Firewall rules (`TCP 8765`, `UDP 8766`).
+   - Idempotently reserves HTTP.sys URL ACL (`http://+:8765/`).
+   - Opens the `Wallpapers/` drop folder in Windows Explorer.
+   - Publishes valid images, generates `manifest.json`, and begins both the host slideshow and the network service.
+
+2. **On Client PCs**: Double-click **`2-Start-Client.bat`**
+   - Operates entirely under the standard interactive user desktop session (zero admin required).
+   - Automatically scans the LAN for the Host PC via UDP broadcast and fast subnet sweep.
+   - Prompts for `AuthSecret` on initial run if not already stored in `ClientConfig.json`.
+   - Downloads wallpaper images into local `Cache/` and immediately applies the desktop wallpaper.
+   - Registers seamless background startup at user logon in `HKCU:\Software\Microsoft\Windows\CurrentVersion\Run`.
+
+3. **Automated Verification**: Double-click **`3-Test-System.bat`**
+   - Executes all 5 enterprise verification suites (57 automated tests + 100-client load benchmark).
 
 ---
 
-## 🖥️ Part 1: Host PC Installation & Persistent Service Setup
+## 🖥️ Part 1: Host PC Setup & Slideshow Launch
 
-### Step 1.1: Run Elevated Host Installer
-1. Open File Explorer and navigate to the project directory: `LAN-Dynamic-Wallpaper\Installer`.
-2. Right-click `Install-Host.bat` and select **Run as Administrator** (or choose Option 4 in `Run-All.bat`).
-3. Alternatively, launch an elevated PowerShell prompt and execute:
-   ```powershell
-   Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-   .\Installer\Install-Host.ps1
-   ```
+### Step 1.1: Launch Host Controller
+1. Double-click **`1-Start-Host.bat`**.
+2. If prompted by Windows User Account Control (UAC), click **Yes** to allow Administrator privileges.
+3. The host manager will execute:
+   - **Network Port Check & Binding**: Binds HTTP service to port `8765` and UDP discovery to port `8766`.
+   - **Firewall Configuration**: Adds scoped rules allowing inbound TCP 8765 and UDP 8766 on Private/Domain networks.
+   - **URL ACL Reservation**: Adds `http://+:8765/` to HTTP.sys reservations for unrestricted LAN binding.
+   - **Secret Initialization**: If `HostConfig.json` lacks an `AuthSecret`, generates a secure 256-bit cryptographic secret and saves it with restricted ACLs.
+   - **Folder Access**: Automatically creates and opens the `Wallpapers/` folder on your screen.
 
-### Step 1.2: Actions Performed Automatically
-The installer performs the following operations without requiring manual intervention:
-1. **Compatibility Check**: Confirms OS version and PowerShell 5.1+ runtime.
-2. **Directory Scaffolding**: Verifies and initializes `Wallpapers\` and `Logs\`.
-3. **Cryptographic Credential Generation**:
-   - Generates a 256-bit random client authentication token (`AuthSecret`).
-   - Generates a 256-bit random administrator management key (`AdminSecret`).
-   - Stores secrets in `Host\HostConfig.json`.
-4. **Adapter IP Discovery**: Detects the active Ethernet network adapter and binds to its IPv4 address.
-5. **Windows Firewall Rule Creation**:
-   - `LAN-Dynamic-Wallpaper-Host-HTTP` (Inbound TCP `8765`, scoped to Private and Domain profiles).
-   - `LAN-Dynamic-Wallpaper-Host-Discovery` (Inbound UDP `8766`, scoped to Private and Domain profiles).
-6. **HTTP.sys URL ACL Registration**: Registers `http://+:8765/` to allow the HTTP listener to serve LAN traffic smoothly.
-7. **Task Scheduler Registration**: Creates the scheduled task `LAN-Dynamic-Wallpaper-Host` configured to run at system startup with high priority and automatic restart on failure.
-8. **Client Package Generation**: Packages all necessary client files (`Client.ps1`, `Wallpaper.ps1`, pre-configured `ClientConfig.json`, `Install-Client.bat`) into `Installer\Client-Package\`.
-9. **Health Verification**: Pings `http://127.0.0.1:8765/api/v1/health` to confirm the host is live.
+### Step 1.2: Host Console Status
+Upon launch, the Host PC console displays:
+```
+==============================================================================
+  LAN DYNAMIC WALLPAPER SLIDESHOW - HOST MANAGER & SERVER
+==============================================================================
+  [WALLPAPERS FOLDER] UPLOAD / DROP YOUR PHOTOS & VIDEOS HERE:
+     C:\Users\...\LAN-Dynamic-Wallpaper\Wallpapers
+------------------------------------------------------------------------------
+  [FORMATS]  Supported : JPG, PNG, BMP, GIF, WEBP, HEIC, TIFF, MP4, MOV, WMV
+  [TIMER]    Slideshow : 5 SECONDS (Rotates Host & Clients every 5s)
+  [CAPACITY] Max Fleet : Up to 10,000 photos (100 MB per file limit)
+  [NETWORK]  Host IPv4 : 192.168.31.20 (HTTP: 8765 | UDP Discovery: 8766)
+  [SECURITY] Client Token: a8f9... (Saved in HostConfig.json)
+  [PUBLISHED] Active   : 12 assets ready on LAN
+==============================================================================
+```
+Keep this window open or minimized while the slideshow is active.
 
 ---
 
 ## 🖼️ Part 2: Dynamic Wallpaper Management
 
-The administrator manages the active desktop slideshow simply by managing files in the single `Wallpapers\` folder on the Host PC:
+Managing wallpapers is completely dynamic and requires zero server restarts:
 
-### Adding New Images
-1. Copy any valid image or video (`.jpg`, `.jpeg`, `.png`, `.bmp`, `.heic`, `.webp`, `.mp4`) into `Wallpapers\`.
-2. The background `Publisher.ps1` file-system monitor automatically:
-   - Detects the new file.
-   - Waits for copy completion to ensure the file is not locked.
-   - Inspects binary magic bytes and converts non-native formats (HEIC, WebP, video snapshots) to HD JPEG.
-   - Computes the SHA-256 hash.
+### Adding New Wallpapers
+1. Copy any image or video file into the `Wallpapers/` folder on the Host PC.
+2. The background `Publisher.ps1` file watcher automatically:
+   - Validates that the file copy is complete and unlocked.
+   - Inspects binary magic numbers (rejecting fake or disguised files).
+   - Computes the SHA-256 cryptographic hash.
    - Generates an updated `Wallpapers\manifest.json` with a new `collectionVersion`.
-3. Connected clients detect the new collection on their next check and automatically download the new image.
+3. All client computers detect the new collection on their next check (within 10 seconds) and download the new wallpaper automatically.
 
-### Replacing an Image (Same Filename)
-1. Overwrite an existing image in `Wallpapers\` with a new file having the exact same name.
-2. The publisher computes the new SHA-256 hash.
-3. Because the hash differs from the previous record, the host increments the collection version and updates the asset record.
-4. Clients download the updated image without corrupting their active slideshow.
+### Replacing an Existing Wallpaper
+1. Overwrite an existing image in `Wallpapers/` with a new file using the same filename.
+2. The publisher detects the modified SHA-256 hash, increments the collection version, and clients update seamlessly.
 
-### Deleting an Image
-1. Delete the image file from `Wallpapers\`.
-2. The publisher detects the deletion and publishes an updated `Wallpapers\manifest.json`.
-3. Clients synchronize, remove the deleted image from their local `Cache\`, and smoothly advance to the next available image.
+### Deleting a Wallpaper
+1. Delete the file from `Wallpapers/`.
+2. The publisher updates the manifest, clients prune the deleted file from their local cache, and advance smoothly to the next image.
 
 ---
 
 ## 💻 Part 3: Client PC Deployment (30–100 PCs)
 
-### Mode A: One-Time Manual Installation (Small Fleets)
-Use this mode for independent systems or environments without centralized device management.
+### Deployment Method A: Manual / USB Drive / Network Share
+1. Copy the `LAN-Dynamic-Wallpaper` folder (or outer folder with batch files) to the client machine via USB or LAN share.
+2. Double-click **`2-Start-Client.bat`**.
+3. The client agent will:
+   - Discover the Host PC IP automatically via UDP broadcast or subnet sweep.
+   - If the Host requires authentication and this is a first-time connection from a new PC, enter the `Client Token` displayed on the Host console.
+   - Synchronize all wallpapers into `Cache/`.
+   - Apply the initial desktop wallpaper via Win32 `SystemParametersInfoW`.
+   - Register auto-start at Windows user logon in `HKCU:\Software\Microsoft\Windows\CurrentVersion\Run`.
 
-1. Copy the generated `Installer\Client-Package\` directory to a shared USB drive or read-only network share.
-2. On each target client PC, copy the folder to a local location (e.g., `C:\ProgramData\LAN-Dynamic-Wallpaper\Client`).
-3. Double-click `Install-Client.bat` inside the user's active desktop session.
-4. The client installer will:
-   - Attempt automatic UDP host discovery on port `8766`.
-   - If discovery succeeds, write the host IP to `ClientConfig.json`.
-   - If discovery fails (e.g. across subnets), prompt the user/admin to input the host IP once.
-   - Test connection and verify authentication against the host.
-   - Download the initial manifest and wallpaper image collection into `Cache\`.
-   - Immediately apply the initial wallpaper via Win32 `SystemParametersInfoW`.
-   - Register a Windows Scheduled Task (`LAN-Dynamic-Wallpaper-Client`) configured to start at user logon in interactive session mode.
-
----
-
-### Mode B: Centralized Enterprise Deployment (30–100 Workstations)
-For enterprise fleets joined to Active Directory or managed via Microsoft Intune, deploy the client package silently without user intervention.
-
-#### Architecture of Centralized Package
-Place the client files on a central read-only SMB network share:
-`\\FileServer\Deploy\LAN-Dynamic-Wallpaper\`
-
-#### Active Directory Group Policy (GPO) Deployment
-1. Open **Group Policy Management Console** (`gpmc.msc`).
-2. Create or edit a GPO targeted at the **Workstations Organizational Unit (OU)**.
-3. Navigate to: **User Configuration** -> **Policies** -> **Windows Settings** -> **Scripts (Logon/Logoff)** -> **Logon**.
-4. Add a PowerShell logon script pointing to a bootstrap script:
-   ```powershell
-   # GPO-ClientDeploy.ps1
-   $targetDir = "$env:LOCALAPPDATA\LAN-Dynamic-Wallpaper"
-   $sourceShare = "\\FileServer\Deploy\LAN-Dynamic-Wallpaper\Client-Package"
-   
-   if (-not (Test-Path "$targetDir\Client\Client.ps1")) {
-       New-Item -ItemType Directory -Path "$targetDir\Client" -Force | Out-Null
-       Copy-Item -Path "$sourceShare\*" -Destination "$targetDir\Client" -Recurse -Force
-       
-       # Execute silent client installation
-       & "$targetDir\Client\Install-Client.ps1" -InstallDir "$targetDir\Client" -Silent
-   }
-   ```
-
-#### Microsoft Intune / SCCM Deployment
-1. Package the `Client-Package` folder into a `.intunewin` file using the Microsoft Win32 Content Prep Tool.
-2. Configure **Install Command**:
+### Deployment Method B: Centralized Enterprise Distribution
+For large computer labs or Active Directory domains:
+1. Place the repository folder on a read-only network share: `\\Server\Share\LAN-Dynamic-Wallpaper`.
+2. Create a Group Policy Logon Script or shortcut executing:
    ```cmd
-   powershell.exe -ExecutionPolicy Bypass -File Install-Client.ps1 -Silent
+   powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "\\Server\Share\LAN-Dynamic-Wallpaper\Client\Client.ps1"
    ```
-3. Configure **Uninstall Command**:
-   ```cmd
-   powershell.exe -ExecutionPolicy Bypass -File Uninstall-Client.ps1
-   ```
-4. Set **Install Behavior**: **User** (Critical: must run in interactive user context to apply desktop wallpaper).
-5. Set **Detection Rule**: File existence check for `%LOCALAPPDATA%\LAN-Dynamic-Wallpaper\Client\Client.ps1`.
+3. Because the client requires zero administrative rights, it runs smoothly in all interactive student/employee sessions.
 
 ---
 
-## 🔬 Part 4: Staged Rollout & Verification Procedure
+## 🧪 Part 4: Automated Verification & Testing
 
-### Staged Rollout Plan
-To guarantee zero network congestion and verify stability, follow this staged rollout:
-
-| Phase | Target Scope | Duration | Success Criteria |
-| :--- | :--- | :--- | :--- |
-| **Phase 1: Pilot** | 2 Client PCs | 24 Hours | Initial synchronization, rotation every 60s, offline survival test |
-| **Phase 2: Department** | 10 Client PCs | 48 Hours | Concurrent manifest polling, new image dispatch test, CPU < 1% |
-| **Phase 3: Full Fleet** | 30–100 Client PCs | Ongoing | Stable rotation across all rooms, telemetry audit verified |
-
-### Two-Client Acceptance Scenario Test
-Execute this verification checklist before rolling out to the broader fleet:
-1. **Setup**: Install Host on PC 1. Install Client on PC 2 and PC 3.
-2. **Initial Sync**: Add 5 sample wallpapers to Host. Confirm both PC 2 and PC 3 download all 5 images and cycle through them.
-3. **Dynamic Addition**: Drop 2 new photos into `Wallpapers\`. Confirm both clients pick up the new images within 15 seconds.
-4. **Content Replacement**: Replace photo #1 with a new photo of the same filename. Confirm clients receive the updated hash.
-5. **Deletion**: Delete photo #5 from Host. Confirm clients remove it from `Cache\` and continue cycling through photos 1–4.
-6. **Network Disruption**: Disconnect Ethernet cable on PC 2. Confirm PC 2 continues rotating through cached wallpapers without error dialogs. Reconnect Ethernet and verify synchronization resumes.
+To verify the system end-to-end at any time, run:
+```cmd
+3-Test-System.bat
+```
+This executes all 5 automated test suites:
+- **Suite 1: Publisher Engine** — Tests file copy locks, magic-byte validation, format conversion, SHA-256 hashing, and atomic manifest publishing.
+- **Suite 2: Client Engine** — Tests Win32 P/Invoke desktop wallpaper application, deterministic rotation cycling, cache reconciliation, and single-instance mutex locks.
+- **Suite 3: Host Server & RBAC** — Tests HTTP listener, health probes, client registration, authenticated manifest delivery, binary asset streaming, and heartbeat telemetry.
+- **Suite 4: Security Penetration** — Tests path traversal attacks (`..`, `%2e%2e`, `/`), authentication bypass, privilege escalation, and zero-information leakage.
+- **Suite 5: 100-Client Concurrency Load Benchmark** — Simulates 100 concurrent client nodes issuing 400 requests simultaneously to prove fleet stability and throughput.
 
 ---
 
-## 🗑️ Part 5: Clean Uninstallation
+## 🔒 Part 5: Security Architecture
 
-### Uninstall Client
-Run inside the user session on the client workstation:
-```powershell
-powershell.exe -ExecutionPolicy Bypass -File .\Installer\Uninstall-Client.ps1
-```
-Removes:
-- Scheduled Task `LAN-Dynamic-Wallpaper-Client`.
-- Terminates background client agent processes.
-- Optionally purges downloaded wallpaper cache (`-PurgeCache`).
-
-### Uninstall Host
-Run from an elevated administrator PowerShell prompt on the Host PC:
-```powershell
-powershell.exe -ExecutionPolicy Bypass -File .\Installer\Uninstall-Host.ps1
-```
-Removes:
-- Scheduled Task `LAN-Dynamic-Wallpaper-Host`.
-- Terminates background host HTTP listener and UDP daemon.
-- Deletes Windows Firewall rules (`LAN-Dynamic-Wallpaper-Host-HTTP` and `LAN-Dynamic-Wallpaper-Host-Discovery`).
-- Removes URL ACL `http://+:8765/`.
+- **Zero Hardcoded Secrets**: Secrets are never hardcoded in git-tracked code or batch scripts.
+- **Cryptographic Authentication**: Every manifest and wallpaper request requires the 256-bit `X-Auth-Token`.
+- **Strict Path Traversal Protection**: Request URIs are canonicalized and verified to reside strictly inside `Wallpapers/`.
+- **Session-Scoped Mutex**: Prevents duplicate client processes per user desktop session (`Local\LAN_Dynamic_Wallpaper_Client_$userSid`).
+- **Zero Remote Execution**: Downloaded content is strictly handled as binary images; no remote scripts or commands are ever executed.

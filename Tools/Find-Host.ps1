@@ -59,8 +59,11 @@ try {
             $recvBytes = $udp.Receive([ref]$remoteEp)
             $json = [System.Text.Encoding]::UTF8.GetString($recvBytes)
             $resp = $json | ConvertFrom-Json
-            if ($resp -and $resp.service -eq "LAN_WALLPAPER_HOST") {
-                $foundHosts += $resp
+            if ($resp -and $resp.service -eq "LAN_WALLPAPER_HOST" -and -not [string]::IsNullOrWhiteSpace($resp.ip)) {
+                $parsedIp = $null
+                if ([System.Net.IPAddress]::TryParse($resp.ip, [ref]$parsedIp) -and ($resp.port -gt 0 -and $resp.port -le 65535)) {
+                    $foundHosts += $resp
+                }
             }
         }
         catch [System.Net.Sockets.SocketException] {

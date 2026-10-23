@@ -53,9 +53,9 @@ Attackers might rename malicious executables (`.exe`), scripts (`.ps1`, `.bat`),
 - The client verifies the SHA-256 hash of the downloaded payload before moving it into the active cache. Corrupted downloads or MITM altered files are discarded immediately.
 
 ### 4. Single-Instance Mutex Protection
-To prevent race conditions, disk lockup, or rogue background processes, the client agent acquires a named system mutex:
-`Global\LAN_Dynamic_Wallpaper_Client_Mutex`
-If a duplicate client process attempts to launch, it detects the active mutex and terminates cleanly within 500 milliseconds.
+To prevent race conditions, disk lockup, or rogue background processes while allowing legitimate multi-user desktop sessions, the client agent acquires a session-scoped named system mutex:
+`Local\LAN_Dynamic_Wallpaper_Client_$userSid`
+If a duplicate client process attempts to launch within the same user session, it detects the active mutex and terminates cleanly within 500 milliseconds.
 
 ### 5. Windows Firewall Rules Scoping
 The host installer creates narrowly scoped firewall rules using Windows Firewall APIs:

@@ -37,7 +37,7 @@ Before attempting manual troubleshooting, execute the diagnostic scripts located
    ```
 
 **Remediation**:
-- **Firewall blocked**: Run `Installer\Configure-Firewall.ps1 -Action Enable` on the Host PC with Administrator rights.
+- **Firewall blocked**: Launch `1-Start-Host.bat` as Administrator on the Host PC (it automatically registers Windows Firewall rules for TCP 8765 and UDP 8766).
 - **Wrong Host IP**: Verify the host's actual IPv4 address using `Get-NetIPAddress -AddressFamily IPv4` on the Host PC and update `Client\ClientConfig.json`.
 - **Network Profile**: Ensure the Ethernet network connection is set to **Private** or **Domain**, not Public:
   ```powershell
@@ -77,12 +77,11 @@ The client is architected to operate flawlessly with a static IP configuration w
 1. On the **Host PC**, inspect `Host\HostConfig.json` to find the current `AuthSecret`:
    ```json
    "Security": {
-     "AuthSecret": "a8f9c3e2b1d4765e9081234567abcdef...",
+     "AuthSecret": "<your_256_bit_client_token>",
      ...
    }
    ```
-2. On the **Client PC**, open `Client\ClientConfig.json` and ensure the `AuthSecret` matches identically.
-3. Alternatively, copy the generated `Installer\Client-Package` folder from the Host to the Client; it always contains the matching credentials.
+2. On the **Client PC**, enter this token when prompted by `2-Start-Client.bat` or save it directly into `Client\ClientConfig.json` under `"AuthSecret"`.
 
 ---
 
