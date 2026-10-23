@@ -6,8 +6,12 @@
 [CmdletBinding()]
 param(
     [string]$ShareName = "LAN-Dynamic-Wallpaper",
-    [string]$FolderPath = "c:\Users\tharu\Downloads\IT\LAN-Dynamic-Wallpaper"
+    [string]$FolderPath = ""
 )
+
+if ([string]::IsNullOrWhiteSpace($FolderPath)) {
+    $FolderPath = if ($PSScriptRoot) { [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..")) } else { (Get-Location).Path }
+}
 
 # Check Administrator
 net session >nul 2>&1
