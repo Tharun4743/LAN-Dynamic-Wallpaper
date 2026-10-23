@@ -452,6 +452,9 @@ function Sync-WallpaperCollection {
             if ($existingManifest.images.Count -ne $validImages.Count) {
                 $hasChanged = $true
             }
+            elseif ($existingManifest.PSObject.Properties['slideshowInterval'] -and $existingManifest.slideshowInterval -ne $SlideshowInterval) {
+                $hasChanged = $true
+            }
             else {
                 for ($idx = 0; $idx -lt $validImages.Count; $idx++) {
                     $curr = $validImages[$idx]

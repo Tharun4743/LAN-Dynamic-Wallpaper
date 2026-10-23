@@ -16,10 +16,15 @@ set "LOCAL_CLIENT=%LOCALAPPDATA%\LAN-Dynamic-Wallpaper-Client"
 :: Initialize server override variable as empty
 set "SERVER_OVERRIDE="
 
+:: Check if user passed Host IP or Hostname as a command-line argument (e.g. 2-Start-Client.bat 192.168.31.20)
+if not "%~1"=="" set "SERVER_OVERRIDE=%~1"
+
 :: Check if launched from a UNC network share path (starts with double backslash \\)
 if "%SOURCE_DIR:~0,2%"=="\\" (
-    :: Extract the Host Computer Name dynamically from the UNC path (e.g., \\HOST-PC\...)
-    for /f "tokens=1 delims=\" %%A in ("%SOURCE_DIR:~2%") do set "SERVER_OVERRIDE=%%A"
+    :: If no command-line override was passed, extract Host Computer Name dynamically from the UNC path
+    if "%SERVER_OVERRIDE%"=="" (
+        for /f "tokens=1 delims=\" %%A in ("%SOURCE_DIR:~2%") do set "SERVER_OVERRIDE=%%A"
+    )
 )
 
 echo.
