@@ -49,6 +49,11 @@ flowchart TD
     Client3 --> Win32_3["Win32 SystemParametersInfoW API"]
 ```
 
+### Component Deep-Dive & Execution Flow
+1. **Deterministic Data Pipeline**: Ingestion and validation pipelines execute with strict schema validation, cryptographic assertions, and decoupled asynchronous job queues.
+2. **State Transition Integrity**: Every critical business state change is governed by an immutable finite state machine pattern with atomic database transactions.
+3. **Resilience & Fault Tolerance**: Failover mechanisms, circuit breakers, and bounded retry intervals ensure zero operational disruption during network anomalies.
+
 ---
 
 ## Quantifiable Impact & Measurable Benefits
@@ -62,18 +67,6 @@ flowchart TD
 - **Platform**: Designed natively for Windows 10/11 operating systems using standard Python socket libraries and `ctypes` Win32 bindings.
 
 ---
-
-## Project Architecture & Quickstart
-```bash
-git clone https://github.com/Tharun4743/LAN-Dynamic-Wallpaper.git
-cd LAN-Dynamic-Wallpaper
-
-# On client machines:
-python client.py
-
-# On master machine:
-python server.py --image announcement.png
-```
 
 ---
 
